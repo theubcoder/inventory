@@ -24,3 +24,42 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* RTL Support for Urdu */
+[dir="rtl"] {
+  text-align: right;
+}
+
+[dir="rtl"] .navigation {
+  left: auto;
+  right: 0;
+}
+
+[dir="rtl"] .menu-item.active::before {
+  left: auto;
+  right: 0;
+}
+
+
+[dir="rtl"] .menu-label {
+  margin-left: 0;
+  margin-right: 12px;
+}
+
+[dir="rtl"] .stat-change {
+  direction: ltr;
+}
+
+/* Urdu Font Support */
+[dir="rtl"] * {
+  font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', Arial, sans-serif;
+  line-height: 1.8;
+}
+
+/* Fix number direction in RTL */
+[dir="rtl"] .stat-value,
+[dir="rtl"] .product-price,
+[dir="rtl"] .total-value {
+  direction: ltr;
+  text-align: center;
+}
