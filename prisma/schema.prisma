@@ -134,3 +134,45 @@ model Expense {
 
   @@map("expenses")
 }
+
+model Supplier {
+  id             Int                @id @default(autoincrement())
+  name           String             @unique @db.VarChar(255)
+  contactNumber  String?            @map("contact_number") @db.VarChar(20)
+  address        String?
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+  
+  transactions   OgraiTransaction[]
+
+  @@map("suppliers")
+}
+
+model OgraiTransaction {
+  id                 Int      @id @default(autoincrement())
+  supplierId         Int      @map("supplier_id")
+  supplierName       String   @map("supplier_name") @db.VarChar(255)
+  contactNumber      String?  @map("contact_number") @db.VarChar(20)
+  address            String?
+  transactionDate    DateTime @map("transaction_date") @db.Date
+  productName        String   @map("product_name") @db.VarChar(255)
+  quantity           Decimal  @db.Decimal(10, 2)
+  pricePerUnit       Decimal  @map("price_per_unit") @db.Decimal(10, 2)
+  totalAmount        Decimal  @map("total_amount") @db.Decimal(10, 2)
+  amountPaid         Decimal  @map("amount_paid") @db.Decimal(10, 2)
+  remainingAmount    Decimal  @map("remaining_amount") @db.Decimal(10, 2)
+  overpaidAmount     Decimal  @default(0) @map("overpaid_amount") @db.Decimal(10, 2)
+  transportFee       Decimal  @default(0) @map("transport_fee") @db.Decimal(10, 2)
+  transportPaid      Decimal  @default(0) @map("transport_paid") @db.Decimal(10, 2)
+  transportRemaining Decimal  @default(0) @map("transport_remaining") @db.Decimal(10, 2)
+  paymentMethod      String   @map("payment_method") @db.VarChar(50)
+  notes              String?
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  
+  supplier           Supplier @relation(fields: [supplierId], references: [id])
+
+  @@index([supplierId])
+  @@index([transactionDate])
+  @@map("ograi_transactions")
+}

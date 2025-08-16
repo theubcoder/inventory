@@ -11,6 +11,7 @@ export default function Navigation({ activeTab, setActiveTab }) {
     { id: 'dashboard', label: t('dashboard'), icon: '📊' },
     { id: 'products', label: t('products'), icon: '📦' },
     { id: 'sales', label: t('sales'), icon: '💰' },
+    { id: 'ograi', label: 'Ograi', icon: '💳' },
     { id: 'returns', label: t('returns'), icon: '↩️' },
     { id: 'reports', label: t('reports'), icon: '📈' },
   ];

@@ -5,6 +5,7 @@ import Navigation from './MyComponents/Navigation';
 import Dashboard from './MyComponents/Dashboard';
 import ProductManagement from './MyComponents/ProductManagement';
 import SalesPOS from './MyComponents/SalesPOS';
+import Ograi from './MyComponents/Ograi';
 import Returns from './MyComponents/Returns';
 import Reports from './MyComponents/Reports';
 import { LanguageProvider } from './contexts/LanguageContext';
@@ -20,6 +21,8 @@ export default function Home() {
         return <ProductManagement />;
       case 'sales':
         return <SalesPOS />;
+      case 'ograi':
+        return <Ograi />;
       case 'returns':
         return <Returns />;
       case 'reports':
