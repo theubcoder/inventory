@@ -81,7 +81,8 @@ export default function ProductManagement() {
         categoryId: formData.categoryId ? parseInt(formData.categoryId) : null,
         price: parseFloat(formData.price),
         quantity: parseInt(formData.quantity),
-        minStock: parseInt(formData.minStock)
+        minStock: parseInt(formData.minStock),
+        unitsPerBox: parseInt(formData.unitsPerBox) || 10
       };
 
       if (editingProduct) {
@@ -308,6 +309,7 @@ export default function ProductManagement() {
           border: 2px solid #e5e7eb;
           border-radius: 12px;
           font-size: 15px;
+          color: black;
           transition: all 0.3s ease;
         }
 
@@ -393,6 +395,24 @@ export default function ProductManagement() {
         .status-badge.out-of-stock {
           background: #fee2e2;
           color: #dc2626;
+        }
+        
+        .box-indicator {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 4px 8px;
+          background: #f3f4f6;
+          border-radius: 6px;
+          font-size: 13px;
+        }
+        
+        .box-icon {
+          width: 16px;
+          height: 16px;
+          background: #667eea;
+          border-radius: 3px;
+          display: inline-block;
         }
 
         .product-details {
@@ -516,6 +536,7 @@ export default function ProductManagement() {
           border: 2px solid #e5e7eb;
           border-radius: 10px;
           font-size: 15px;
+          color: black;
           transition: all 0.3s ease;
         }
 
@@ -756,11 +777,15 @@ export default function ProductManagement() {
               </div>
               <div className="detail-row">
                 <span className="detail-label">Stock:</span>
-                <span className="detail-value">{product.quantity} units</span>
+                <span className="detail-value">
+                  {Math.floor(product.quantity / 10)} boxes ({product.quantity} units)
+                </span>
               </div>
               <div className="detail-row">
                 <span className="detail-label">Min Stock:</span>
-                <span className="detail-value">{product.minStock} units</span>
+                <span className="detail-value">
+                  {Math.floor(product.minStock / 10)} boxes ({product.minStock} units)
+                </span>
               </div>
             </div>
             <div className="product-actions">
@@ -859,29 +884,58 @@ export default function ProductManagement() {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Quantity</label>
+                  <label className="form-label">Units Per Box</label>
                   <input
                     type="number"
-                    name="quantity"
+                    name="unitsPerBox"
                     className="form-input"
-                    value={formData.quantity}
+                    value={formData.unitsPerBox}
                     onChange={handleInputChange}
-                    min="0"
+                    min="1"
                     required
+                    placeholder="How many units in one box?"
                   />
                 </div>
               </div>
-              <div className="form-group">
-                <label className="form-label">Minimum Stock Level</label>
-                <input
-                  type="number"
-                  name="minStock"
-                  className="form-input"
-                  value={formData.minStock}
-                  onChange={handleInputChange}
-                  min="0"
-                  required
-                />
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Quantity (Total Units)</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    <input
+                      type="number"
+                      name="quantity"
+                      className="form-input"
+                      value={formData.quantity}
+                      onChange={handleInputChange}
+                      min="0"
+                      required
+                    />
+                    <span style={{ color: '#6b7280', fontSize: '13px' }}>
+                      = {Math.floor((formData.quantity || 0) / (formData.unitsPerBox || 10))} boxes + {(formData.quantity || 0) % (formData.unitsPerBox || 10)} units
+                    </span>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Minimum Stock (in Boxes)</label>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <input
+                      type="number"
+                      value={Math.floor(formData.minStock / (formData.unitsPerBox || 10)) || ''}
+                      onChange={(e) => {
+                        const boxes = parseInt(e.target.value) || 0;
+                        setFormData({...formData, minStock: (boxes * (parseInt(formData.unitsPerBox) || 10)).toString()});
+                      }}
+                      min="0"
+                      required
+                      className="form-input"
+                      style={{ flex: 1 }}
+                      placeholder="Number of boxes"
+                    />
+                    <span style={{ color: '#6b7280', fontSize: '14px' }}>
+                      = {formData.minStock || 0} units
+                    </span>
+                  </div>
+                </div>
               </div>
               <div className="form-group">
                 <label className="form-label">Description (Optional)</label>

@@ -262,6 +262,16 @@ export default function SalesPOS() {
           font-size: 12px;
           color: #6b7280;
         }
+        
+        .product-stock.low-stock {
+          color: #d97706;
+          font-weight: 500;
+        }
+        
+        .product-stock.out-of-stock {
+          color: #dc2626;
+          font-weight: 500;
+        }
 
         .cart-header {
           padding: 20px;
@@ -684,7 +694,15 @@ export default function SalesPOS() {
               <div className="product-info">
                 <div className="product-name">{product.name}</div>
                 <div className="product-price">PKR {product.price.toLocaleString()}</div>
-                <div className="product-stock">Stock: {product.stock || 0}</div>
+                <div className={`product-stock ${
+                  product.stock === 0 ? 'out-of-stock' : 
+                  product.stock < (product.minStock || 10) ? 'low-stock' : ''
+                }`}>
+                  Stock: {Math.floor((product.stock || 0) / (product.unitsPerBox || 10))} boxes ({product.stock || 0} units)
+                  <span style={{ fontSize: '11px', color: '#9ca3af', marginLeft: '5px' }}>
+                    ({product.unitsPerBox || 10} units/box)
+                  </span>
+                </div>
               </div>
             </div>
           ))}

@@ -49,7 +49,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name, categoryId, price, quantity, minStock, description, barcode } = body;
+    const { name, categoryId, price, quantity, minStock, unitsPerBox, description, barcode } = body;
 
     // Validate required fields
     if (!name || !price || quantity === undefined) {
@@ -63,6 +63,7 @@ export async function POST(request) {
         price: parseFloat(price),
         quantity: parseInt(quantity),
         minStock: parseInt(minStock) || 10,
+        unitsPerBox: parseInt(unitsPerBox) || 10,
         description,
         barcode
       },
@@ -82,7 +83,7 @@ export async function POST(request) {
 export async function PUT(request) {
   try {
     const body = await request.json();
-    const { id, name, categoryId, price, quantity, minStock, description, barcode } = body;
+    const { id, name, categoryId, price, quantity, minStock, unitsPerBox, description, barcode } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Product ID required' }, { status: 400 });
@@ -96,6 +97,7 @@ export async function PUT(request) {
         price: parseFloat(price),
         quantity: parseInt(quantity),
         minStock: parseInt(minStock),
+        unitsPerBox: parseInt(unitsPerBox) || 10,
         description,
         barcode
       },

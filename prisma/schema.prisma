@@ -19,20 +19,20 @@ model Category {
 }
 
 model Product {
-  id          Int         @id @default(autoincrement())
-  name        String      @db.VarChar(255)
-  categoryId  Int?        @map("category_id")
-  price       Decimal     @db.Decimal(10, 2)
-  quantity    Int         @default(0)
-  minStock    Int         @default(10) @map("min_stock")
+  id          Int          @id @default(autoincrement())
+  name        String       @db.VarChar(255)
+  categoryId  Int?         @map("category_id")
+  price       Decimal      @db.Decimal(10, 2)
+  quantity    Int          @default(0)
+  minStock    Int          @default(10) @map("min_stock")
+  unitsPerBox Int          @default(10) @map("units_per_box")
   description String?
-  barcode     String?     @db.VarChar(50)
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
-  
-  category    Category?   @relation(fields: [categoryId], references: [id])
-  saleItems   SaleItem[]
+  barcode     String?      @db.VarChar(50)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  category    Category?    @relation(fields: [categoryId], references: [id])
   returnItems ReturnItem[]
+  saleItems   SaleItem[]
 
   @@index([categoryId])
   @@index([barcode])
@@ -40,15 +40,14 @@ model Product {
 }
 
 model Customer {
-  id        Int       @id @default(autoincrement())
-  name      String    @db.VarChar(255)
-  phone     String?   @db.VarChar(20)
-  email     String?   @db.VarChar(255)
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(255)
+  phone     String?  @db.VarChar(20)
+  email     String?  @db.VarChar(255)
   address   String?
-  createdAt DateTime  @default(now()) @map("created_at")
-  
-  sales     Sale[]
+  createdAt DateTime @default(now()) @map("created_at")
   returns   Return[]
+  sales     Sale[]
 
   @@map("customers")
 }
@@ -62,10 +61,9 @@ model Sale {
   paymentMethod  String     @map("payment_method") @db.VarChar(50)
   status         String     @default("completed") @db.VarChar(50)
   createdAt      DateTime   @default(now()) @map("created_at")
-  
-  customer       Customer?  @relation(fields: [customerId], references: [id])
-  saleItems      SaleItem[]
   returns        Return[]
+  saleItems      SaleItem[]
+  customer       Customer?  @relation(fields: [customerId], references: [id])
 
   @@index([customerId])
   @@index([createdAt])
@@ -80,9 +78,8 @@ model SaleItem {
   unitPrice  Decimal  @map("unit_price") @db.Decimal(10, 2)
   totalPrice Decimal  @map("total_price") @db.Decimal(10, 2)
   createdAt  DateTime @default(now()) @map("created_at")
-  
-  sale       Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
   product    Product  @relation(fields: [productId], references: [id])
+  sale       Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
   @@index([saleId])
   @@index([productId])
@@ -99,10 +96,9 @@ model Return {
   processedBy  String?      @map("processed_by") @db.VarChar(255)
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
-  
-  sale         Sale         @relation(fields: [saleId], references: [id])
-  customer     Customer?    @relation(fields: [customerId], references: [id])
   returnItems  ReturnItem[]
+  customer     Customer?    @relation(fields: [customerId], references: [id])
+  sale         Sale         @relation(fields: [saleId], references: [id])
 
   @@index([saleId])
   @@map("returns")
@@ -116,9 +112,8 @@ model ReturnItem {
   unitPrice  Decimal  @map("unit_price") @db.Decimal(10, 2)
   totalPrice Decimal  @map("total_price") @db.Decimal(10, 2)
   createdAt  DateTime @default(now()) @map("created_at")
-  
-  return     Return   @relation(fields: [returnId], references: [id], onDelete: Cascade)
   product    Product  @relation(fields: [productId], references: [id])
+  return     Return   @relation(fields: [returnId], references: [id], onDelete: Cascade)
 
   @@index([returnId])
   @@map("return_items")
@@ -136,43 +131,59 @@ model Expense {
 }
 
 model Supplier {
-  id             Int                @id @default(autoincrement())
-  name           String             @unique @db.VarChar(255)
-  contactNumber  String?            @map("contact_number") @db.VarChar(20)
-  address        String?
-  createdAt      DateTime           @default(now()) @map("created_at")
-  updatedAt      DateTime           @updatedAt @map("updated_at")
-  
-  transactions   OgraiTransaction[]
+  id            Int                @id @default(autoincrement())
+  name          String             @unique @db.VarChar(255)
+  contactNumber String?            @map("contact_number") @db.VarChar(20)
+  address       String?
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+  transactions  OgraiTransaction[]
 
   @@map("suppliers")
 }
 
 model OgraiTransaction {
-  id                 Int      @id @default(autoincrement())
-  supplierId         Int      @map("supplier_id")
-  supplierName       String   @map("supplier_name") @db.VarChar(255)
-  contactNumber      String?  @map("contact_number") @db.VarChar(20)
+  id                 Int                   @id @default(autoincrement())
+  supplierId         Int                   @map("supplier_id")
+  supplierName       String                @map("supplier_name") @db.VarChar(255)
+  contactNumber      String?               @map("contact_number") @db.VarChar(20)
   address            String?
-  transactionDate    DateTime @map("transaction_date") @db.Date
-  productName        String   @map("product_name") @db.VarChar(255)
-  quantity           Decimal  @db.Decimal(10, 2)
-  pricePerUnit       Decimal  @map("price_per_unit") @db.Decimal(10, 2)
-  totalAmount        Decimal  @map("total_amount") @db.Decimal(10, 2)
-  amountPaid         Decimal  @map("amount_paid") @db.Decimal(10, 2)
-  remainingAmount    Decimal  @map("remaining_amount") @db.Decimal(10, 2)
-  overpaidAmount     Decimal  @default(0) @map("overpaid_amount") @db.Decimal(10, 2)
-  transportFee       Decimal  @default(0) @map("transport_fee") @db.Decimal(10, 2)
-  transportPaid      Decimal  @default(0) @map("transport_paid") @db.Decimal(10, 2)
-  transportRemaining Decimal  @default(0) @map("transport_remaining") @db.Decimal(10, 2)
-  paymentMethod      String   @map("payment_method") @db.VarChar(50)
+  transactionDate    DateTime              @map("transaction_date") @db.Date
+  productName        String                @map("product_name") @db.VarChar(255)
+  quantity           Decimal               @db.Decimal(10, 2)
+  pricePerUnit       Decimal               @map("price_per_unit") @db.Decimal(10, 2)
+  totalAmount        Decimal               @map("total_amount") @db.Decimal(10, 2)
+  amountPaid         Decimal               @map("amount_paid") @db.Decimal(10, 2)
+  remainingAmount    Decimal               @map("remaining_amount") @db.Decimal(10, 2)
+  overpaidAmount     Decimal               @default(0) @map("overpaid_amount") @db.Decimal(10, 2)
+  transportFee       Decimal               @default(0) @map("transport_fee") @db.Decimal(10, 2)
+  transportPaid      Decimal               @default(0) @map("transport_paid") @db.Decimal(10, 2)
+  transportRemaining Decimal               @default(0) @map("transport_remaining") @db.Decimal(10, 2)
+  paymentMethod      String                @map("payment_method") @db.VarChar(50)
   notes              String?
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
-  
-  supplier           Supplier @relation(fields: [supplierId], references: [id])
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+  paymentHistory     OgraiPaymentHistory[]
+  supplier           Supplier              @relation(fields: [supplierId], references: [id])
 
   @@index([supplierId])
   @@index([transactionDate])
   @@map("ograi_transactions")
+}
+
+model OgraiPaymentHistory {
+  id               Int              @id @default(autoincrement())
+  transactionId    Int              @map("transaction_id")
+  paymentDate      DateTime         @map("payment_date") @db.Date
+  paymentAmount    Decimal          @map("payment_amount") @db.Decimal(10, 2)
+  transportPayment Decimal          @default(0) @map("transport_payment") @db.Decimal(10, 2)
+  totalPayment     Decimal          @map("total_payment") @db.Decimal(10, 2)
+  paymentMethod    String           @map("payment_method") @db.VarChar(50)
+  notes            String?
+  createdAt        DateTime         @default(now()) @map("created_at")
+  transaction      OgraiTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@index([transactionId])
+  @@index([paymentDate])
+  @@map("ograi_payment_history")
 }

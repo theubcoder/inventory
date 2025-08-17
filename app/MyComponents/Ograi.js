@@ -9,6 +9,8 @@ export default function Ograi() {
   const [transactions, setTransactions] = useState([]);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [loading, setLoading] = useState(false);
   
   const [formData, setFormData] = useState({
@@ -29,6 +31,17 @@ export default function Ograi() {
     paymentMethod: 'cash',
     notes: ''
   });
+
+  const [paymentData, setPaymentData] = useState({
+    paymentAmount: '',
+    transportPayment: '',
+    paymentDate: new Date().toISOString().split('T')[0],
+    paymentMethod: 'cash',
+    notes: ''
+  });
+  
+  const [paymentHistory, setPaymentHistory] = useState([]);
+  const [showPaymentHistory, setShowPaymentHistory] = useState(false);
 
   useEffect(() => {
     fetchSuppliers();
@@ -77,6 +90,18 @@ export default function Ograi() {
       console.error('Error fetching transactions:', error);
     }
   };
+  
+  const fetchPaymentHistory = async (transactionId) => {
+    try {
+      const response = await fetch(`/api/ograi/payment-history?transactionId=${transactionId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setPaymentHistory(data);
+      }
+    } catch (error) {
+      console.error('Error fetching payment history:', error);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -90,12 +115,20 @@ export default function Ograi() {
       });
       
       if (response.ok) {
+        const data = await response.json();
+        console.log('Transaction saved:', data);
         fetchTransactions();
         setShowAddForm(false);
         resetForm();
+        alert('Transaction saved successfully!');
+      } else {
+        const errorData = await response.json();
+        console.error('Server error:', errorData);
+        alert(`Error saving transaction: ${errorData.details || errorData.error}`);
       }
     } catch (error) {
       console.error('Error saving transaction:', error);
+      alert('Error saving transaction. Please check console for details.');
     } finally {
       setLoading(false);
     }
@@ -120,6 +153,82 @@ export default function Ograi() {
       paymentMethod: 'cash',
       notes: ''
     });
+  };
+
+  const handleMakePayment = async (e) => {
+    e.preventDefault();
+    
+    // Validate payment amounts
+    const paymentAmount = parseFloat(paymentData.paymentAmount || 0);
+    const transportPayment = parseFloat(paymentData.transportPayment || 0);
+    const remainingAmount = parseFloat(selectedTransaction.remainingAmount);
+    const transportRemaining = parseFloat(selectedTransaction.transportRemaining);
+    
+    if (paymentAmount > remainingAmount) {
+      alert(`Payment amount cannot exceed remaining amount of PKR ${remainingAmount.toLocaleString()}`);
+      return;
+    }
+    
+    if (transportPayment > transportRemaining) {
+      alert(`Transport payment cannot exceed remaining transport amount of PKR ${transportRemaining.toLocaleString()}`);
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      const updatedTransaction = {
+        id: selectedTransaction.id,
+        amountPaid: parseFloat(selectedTransaction.amountPaid) + paymentAmount,
+        remainingAmount: Math.max(0, remainingAmount - paymentAmount),
+        transportPaid: parseFloat(selectedTransaction.transportPaid) + transportPayment,
+        transportRemaining: Math.max(0, transportRemaining - transportPayment),
+        paymentData: {
+          paymentDate: paymentData.paymentDate,
+          paymentMethod: paymentData.paymentMethod,
+          notes: paymentData.notes
+        }
+      };
+      
+      const response = await fetch('/api/ograi/transactions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedTransaction)
+      });
+      
+      if (response.ok) {
+        fetchTransactions();
+        setShowPaymentForm(false);
+        setSelectedTransaction(null);
+        setPaymentData({
+          paymentAmount: '',
+          transportPayment: '',
+          paymentDate: new Date().toISOString().split('T')[0],
+          paymentMethod: 'cash',
+          notes: ''
+        });
+        alert('Payment recorded successfully!');
+      } else {
+        const errorData = await response.json();
+        alert(`Error recording payment: ${errorData.error}`);
+      }
+    } catch (error) {
+      console.error('Error recording payment:', error);
+      alert('Error recording payment. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openPaymentModal = (transaction) => {
+    setSelectedTransaction(transaction);
+    setShowPaymentForm(true);
+  };
+  
+  const openPaymentHistoryModal = async (transaction) => {
+    setSelectedTransaction(transaction);
+    await fetchPaymentHistory(transaction.id);
+    setShowPaymentHistory(true);
   };
 
   const getSupplierSummary = (supplierName) => {
@@ -182,7 +291,7 @@ export default function Ograi() {
           border: 2px solid #e5e7eb;
           border-radius: 10px;
           font-size: 14px;
-          color: #1f2937;
+          color: black;
           transition: all 0.3s ease;
         }
 
@@ -481,7 +590,7 @@ export default function Ograi() {
           border: 2px solid #e5e7eb;
           border-radius: 8px;
           font-size: 14px;
-          color: #1f2937;
+          color: black;
           transition: all 0.3s ease;
         }
 
@@ -501,7 +610,7 @@ export default function Ograi() {
           border: 2px solid #e5e7eb;
           border-radius: 8px;
           font-size: 14px;
-          color: #1f2937;
+          color: black;
           transition: all 0.3s ease;
           cursor: pointer;
         }
@@ -517,7 +626,7 @@ export default function Ograi() {
           border: 2px solid #e5e7eb;
           border-radius: 8px;
           font-size: 14px;
-          color: #1f2937;
+          color: black;
           resize: vertical;
           min-height: 80px;
           transition: all 0.3s ease;
@@ -753,6 +862,7 @@ export default function Ograi() {
                   <th>Remaining</th>
                   <th>Transport</th>
                   <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -770,14 +880,50 @@ export default function Ograi() {
                     <td>PKR {transaction.transportRemaining.toLocaleString()}</td>
                     <td>
                       <span className={`status-badge ${
-                        transaction.remainingAmount === 0 ? 'status-paid' : 
+                        transaction.remainingAmount === 0 && transaction.transportRemaining === 0 ? 'status-paid' : 
                         transaction.overpaidAmount > 0 ? 'status-overpaid' : 
                         'status-pending'
                       }`}>
-                        {transaction.remainingAmount === 0 ? 'Paid' : 
+                        {transaction.remainingAmount === 0 && transaction.transportRemaining === 0 ? 'Complete' : 
                          transaction.overpaidAmount > 0 ? 'Overpaid' : 
                          'Pending'}
                       </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        {(transaction.remainingAmount > 0 || transaction.transportRemaining > 0) && (
+                          <button
+                            className="payment-btn"
+                            onClick={() => openPaymentModal(transaction)}
+                            style={{
+                              padding: '6px 12px',
+                              fontSize: '12px',
+                              background: 'linear-gradient(135deg, #10b981, #059669)',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '6px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            💵 Pay
+                          </button>
+                        )}
+                        <button
+                          className="history-btn"
+                          onClick={() => openPaymentHistoryModal(transaction)}
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: '12px',
+                            background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          📜 History
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -991,6 +1137,267 @@ export default function Ograi() {
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={loading}>
                   {loading ? 'Saving...' : 'Save Transaction'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showPaymentHistory && selectedTransaction && (
+        <div className="modal-overlay" onClick={(e) => {
+          if (e.target === e.currentTarget) setShowPaymentHistory(false);
+        }}>
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2 className="modal-title">Payment History</h2>
+              <button className="close-btn" onClick={() => setShowPaymentHistory(false)}>✕</button>
+            </div>
+
+            <div style={{ marginBottom: '20px', padding: '15px', background: '#f9fafb', borderRadius: '10px' }}>
+              <h3 style={{ fontSize: '16px', marginBottom: '10px', color: '#374151' }}>Transaction Details</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '14px' }}>
+                <div>
+                  <span style={{ color: '#6b7280' }}>Supplier: </span>
+                  <strong>{selectedTransaction.supplierName}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#6b7280' }}>Product: </span>
+                  <strong>{selectedTransaction.productName}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#6b7280' }}>Total Amount: </span>
+                  <strong>PKR {parseFloat(selectedTransaction.totalAmount).toLocaleString()}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#6b7280' }}>Total Paid: </span>
+                  <strong>PKR {parseFloat(selectedTransaction.amountPaid).toLocaleString()}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#6b7280' }}>Remaining: </span>
+                  <strong style={{ color: '#dc2626' }}>PKR {parseFloat(selectedTransaction.remainingAmount).toLocaleString()}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#6b7280' }}>Transport Remaining: </span>
+                  <strong style={{ color: '#dc2626' }}>PKR {parseFloat(selectedTransaction.transportRemaining).toLocaleString()}</strong>
+                </div>
+              </div>
+            </div>
+
+            {paymentHistory.length > 0 ? (
+              <div className="table-wrapper">
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>Payment #</th>
+                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>Date</th>
+                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>Product Payment</th>
+                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>Transport Payment</th>
+                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>Total Payment</th>
+                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>Method</th>
+                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paymentHistory.map((payment, index) => (
+                      <tr key={payment.id}>
+                        <td style={{ padding: '10px', borderBottom: '1px solid #f3f4f6' }}>
+                          Installment {paymentHistory.length - index}
+                        </td>
+                        <td style={{ padding: '10px', borderBottom: '1px solid #f3f4f6' }}>
+                          {new Date(payment.paymentDate).toLocaleDateString()}
+                        </td>
+                        <td style={{ padding: '10px', borderBottom: '1px solid #f3f4f6' }}>
+                          PKR {parseFloat(payment.paymentAmount).toLocaleString()}
+                        </td>
+                        <td style={{ padding: '10px', borderBottom: '1px solid #f3f4f6' }}>
+                          PKR {parseFloat(payment.transportPayment).toLocaleString()}
+                        </td>
+                        <td style={{ padding: '10px', borderBottom: '1px solid #f3f4f6', fontWeight: 'bold' }}>
+                          PKR {parseFloat(payment.totalPayment).toLocaleString()}
+                        </td>
+                        <td style={{ padding: '10px', borderBottom: '1px solid #f3f4f6' }}>
+                          {payment.paymentMethod}
+                        </td>
+                        <td style={{ padding: '10px', borderBottom: '1px solid #f3f4f6' }}>
+                          {payment.notes || '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="empty-state">
+                <div className="empty-icon">💳</div>
+                <div className="empty-title">No payment history</div>
+                <div className="empty-description">No payments have been made for this transaction yet</div>
+              </div>
+            )}
+
+            <div className="form-actions" style={{ marginTop: '20px' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setShowPaymentHistory(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPaymentForm && selectedTransaction && (
+        <div className="modal-overlay" onClick={(e) => {
+          if (e.target === e.currentTarget) setShowPaymentForm(false);
+        }}>
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2 className="modal-title">Make Payment</h2>
+              <button className="close-btn" onClick={() => setShowPaymentForm(false)}>✕</button>
+            </div>
+
+            <div style={{ marginBottom: '20px', padding: '15px', background: '#f9fafb', borderRadius: '10px' }}>
+              <h3 style={{ fontSize: '16px', marginBottom: '10px', color: '#374151' }}>Transaction Details</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '14px' }}>
+                <div>
+                  <span style={{ color: '#6b7280' }}>Supplier: </span>
+                  <strong>{selectedTransaction.supplierName}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#6b7280' }}>Product: </span>
+                  <strong>{selectedTransaction.productName}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#6b7280' }}>Total Amount: </span>
+                  <strong>PKR {parseFloat(selectedTransaction.totalAmount).toLocaleString()}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#6b7280' }}>Already Paid: </span>
+                  <strong>PKR {parseFloat(selectedTransaction.amountPaid).toLocaleString()}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#6b7280' }}>Remaining: </span>
+                  <strong style={{ color: '#dc2626' }}>PKR {parseFloat(selectedTransaction.remainingAmount).toLocaleString()}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#6b7280' }}>Transport Remaining: </span>
+                  <strong style={{ color: '#dc2626' }}>PKR {parseFloat(selectedTransaction.transportRemaining).toLocaleString()}</strong>
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={handleMakePayment}>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label className="form-label">Payment Amount *</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={paymentData.paymentAmount}
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value || 0);
+                      const maxAmount = parseFloat(selectedTransaction.remainingAmount);
+                      if (value > maxAmount) {
+                        alert(`Payment amount cannot exceed PKR ${maxAmount.toLocaleString()}`);
+                        return;
+                      }
+                      setPaymentData({...paymentData, paymentAmount: e.target.value});
+                    }}
+                    max={selectedTransaction.remainingAmount}
+                    placeholder={`Max: PKR ${parseFloat(selectedTransaction.remainingAmount).toLocaleString()}`}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Transport Payment</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={paymentData.transportPayment}
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value || 0);
+                      const maxAmount = parseFloat(selectedTransaction.transportRemaining);
+                      if (value > maxAmount) {
+                        alert(`Transport payment cannot exceed PKR ${maxAmount.toLocaleString()}`);
+                        return;
+                      }
+                      setPaymentData({...paymentData, transportPayment: e.target.value});
+                    }}
+                    max={selectedTransaction.transportRemaining}
+                    placeholder={`Max: PKR ${parseFloat(selectedTransaction.transportRemaining).toLocaleString()}`}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Payment Date *</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={paymentData.paymentDate}
+                    onChange={(e) => setPaymentData({...paymentData, paymentDate: e.target.value})}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Payment Method</label>
+                  <select
+                    className="form-select"
+                    value={paymentData.paymentMethod}
+                    onChange={(e) => setPaymentData({...paymentData, paymentMethod: e.target.value})}
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="bank">Bank Transfer</option>
+                    <option value="cheque">Cheque</option>
+                  </select>
+                </div>
+
+                <div className="form-group full-width">
+                  <label className="form-label">Notes</label>
+                  <textarea
+                    className="form-textarea"
+                    value={paymentData.notes}
+                    onChange={(e) => setPaymentData({...paymentData, notes: e.target.value})}
+                    placeholder="Payment notes..."
+                  />
+                </div>
+              </div>
+
+              <div className="summary-section">
+                <h3 className="summary-title">Payment Summary</h3>
+                <div className="summary-row">
+                  <span className="summary-row-label">Product Payment</span>
+                  <span className="summary-row-value">PKR {parseFloat(paymentData.paymentAmount || 0).toLocaleString()}</span>
+                </div>
+                <div className="summary-row">
+                  <span className="summary-row-label">Transport Payment</span>
+                  <span className="summary-row-value">PKR {parseFloat(paymentData.transportPayment || 0).toLocaleString()}</span>
+                </div>
+                <div className="summary-row" style={{ fontWeight: 'bold', borderTop: '2px solid #e5e7eb', paddingTop: '10px' }}>
+                  <span className="summary-row-label">Total Payment</span>
+                  <span className="summary-row-value">
+                    PKR {(parseFloat(paymentData.paymentAmount || 0) + parseFloat(paymentData.transportPayment || 0)).toLocaleString()}
+                  </span>
+                </div>
+                <div className="summary-row">
+                  <span className="summary-row-label">New Remaining Amount</span>
+                  <span className="summary-row-value" style={{ color: '#dc2626' }}>
+                    PKR {Math.max(0, parseFloat(selectedTransaction.remainingAmount) - parseFloat(paymentData.paymentAmount || 0)).toLocaleString()}
+                  </span>
+                </div>
+                <div className="summary-row">
+                  <span className="summary-row-label">New Transport Remaining</span>
+                  <span className="summary-row-value" style={{ color: '#dc2626' }}>
+                    PKR {Math.max(0, parseFloat(selectedTransaction.transportRemaining) - parseFloat(paymentData.transportPayment || 0)).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              <div className="form-actions">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowPaymentForm(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={loading}>
+                  {loading ? 'Processing...' : 'Record Payment'}
                 </button>
               </div>
             </form>
