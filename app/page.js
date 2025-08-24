@@ -8,6 +8,7 @@ import SalesPOS from './MyComponents/SalesPOS';
 import Ograi from './MyComponents/Ograi';
 import Returns from './MyComponents/Returns';
 import Reports from './MyComponents/Reports';
+import LoanManagement from './MyComponents/LoanManagement';
 import { LanguageProvider } from './contexts/LanguageContext';
 
 export default function Home() {
@@ -27,6 +28,8 @@ export default function Home() {
         return <Returns />;
       case 'reports':
         return <Reports />;
+      case 'loans':
+        return <LoanManagement />;
       default:
         return <Dashboard />;
     }

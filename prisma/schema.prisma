@@ -53,20 +53,26 @@ model Customer {
 }
 
 model Sale {
-  id             Int        @id @default(autoincrement())
-  customerId     Int?       @map("customer_id")
-  totalAmount    Decimal    @map("total_amount") @db.Decimal(10, 2)
-  taxAmount      Decimal    @map("tax_amount") @db.Decimal(10, 2)
-  discountAmount Decimal    @default(0) @map("discount_amount") @db.Decimal(10, 2)
-  paymentMethod  String     @map("payment_method") @db.VarChar(50)
-  status         String     @default("completed") @db.VarChar(50)
-  createdAt      DateTime   @default(now()) @map("created_at")
-  returns        Return[]
-  saleItems      SaleItem[]
-  customer       Customer?  @relation(fields: [customerId], references: [id])
+  id               Int             @id @default(autoincrement())
+  customerId       Int?            @map("customer_id")
+  totalAmount      Decimal         @map("total_amount") @db.Decimal(10, 2)
+  taxAmount        Decimal         @map("tax_amount") @db.Decimal(10, 2)
+  discountAmount   Decimal         @default(0) @map("discount_amount") @db.Decimal(10, 2)
+  amountPaid       Decimal         @default(0) @map("amount_paid") @db.Decimal(10, 2)
+  remainingAmount  Decimal         @default(0) @map("remaining_amount") @db.Decimal(10, 2)
+  paymentMethod    String          @map("payment_method") @db.VarChar(50)
+  paymentStatus    String          @default("pending") @map("payment_status") @db.VarChar(50)
+  status           String          @default("completed") @db.VarChar(50)
+  dueDate          DateTime?       @map("due_date") @db.Date
+  createdAt        DateTime        @default(now()) @map("created_at")
+  returns          Return[]
+  saleItems        SaleItem[]
+  paymentHistory   PaymentHistory[]
+  customer         Customer?       @relation(fields: [customerId], references: [id])
 
   @@index([customerId])
   @@index([createdAt])
+  @@index([paymentStatus])
   @@map("sales")
 }
 
@@ -186,4 +192,19 @@ model OgraiPaymentHistory {
   @@index([transactionId])
   @@index([paymentDate])
   @@map("ograi_payment_history")
+}
+
+model PaymentHistory {
+  id            Int      @id @default(autoincrement())
+  saleId        Int      @map("sale_id")
+  amountPaid    Decimal  @map("amount_paid") @db.Decimal(10, 2)
+  paymentMethod String   @map("payment_method") @db.VarChar(50)
+  paymentDate   DateTime @map("payment_date") @default(now())
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  sale          Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+  @@index([paymentDate])
+  @@map("payment_history")
 }

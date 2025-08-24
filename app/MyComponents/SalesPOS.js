@@ -8,6 +8,9 @@ export default function SalesPOS() {
   const [searchTerm, setSearchTerm] = useState('');
   const [customerInfo, setCustomerInfo] = useState({ name: '', phone: '', email: '' });
   const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [amountPaid, setAmountPaid] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [paymentType, setPaymentType] = useState('full'); // full or partial
   const [showCheckout, setShowCheckout] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [lastSale, setLastSale] = useState(null);
@@ -98,6 +101,9 @@ export default function SalesPOS() {
   const processSale = async () => {
     setLoading(true);
     try {
+      const grandTotal = calculateGrandTotal();
+      const paidAmount = paymentType === 'full' ? grandTotal : parseFloat(amountPaid) || 0;
+      
       const saleData = {
         customer: customerInfo.name ? customerInfo : null,
         items: cart.map(item => ({
@@ -105,7 +111,9 @@ export default function SalesPOS() {
           quantity: item.quantity,
           price: item.price
         })),
-        paymentMethod: paymentMethod
+        paymentMethod: paymentMethod,
+        amountPaid: paidAmount,
+        dueDate: paymentType === 'partial' && dueDate ? dueDate : null
       };
 
       const response = await fetch('/api/sales', {
@@ -130,6 +138,9 @@ export default function SalesPOS() {
         setCart([]);
         setCustomerInfo({ name: '', phone: '', email: '' });
         setPaymentMethod('cash');
+        setAmountPaid('');
+        setDueDate('');
+        setPaymentType('full');
         setShowCheckout(false);
         setShowReceipt(true);
         
@@ -821,6 +832,66 @@ export default function SalesPOS() {
             </div>
 
             <div className="form-group">
+              <label className="form-label">Payment Type</label>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    value="full"
+                    checked={paymentType === 'full'}
+                    onChange={(e) => setPaymentType(e.target.value)}
+                    style={{ marginRight: '8px' }}
+                  />
+                  Full Payment
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    value="partial"
+                    checked={paymentType === 'partial'}
+                    onChange={(e) => setPaymentType(e.target.value)}
+                    style={{ marginRight: '8px' }}
+                  />
+                  Partial Payment (Loan/Credit)
+                </label>
+              </div>
+            </div>
+
+            {paymentType === 'partial' && (
+              <>
+                <div className="form-group">
+                  <label className="form-label">Amount Paid Now</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={amountPaid}
+                    onChange={(e) => setAmountPaid(e.target.value)}
+                    placeholder="Enter amount customer is paying now"
+                    min="0"
+                    max={calculateGrandTotal().toFixed(2)}
+                    step="0.01"
+                  />
+                  {amountPaid && (
+                    <div style={{ marginTop: '8px', fontSize: '14px', color: '#6b7280' }}>
+                      Remaining: PKR {(calculateGrandTotal() - parseFloat(amountPaid || 0)).toFixed(2)}
+                    </div>
+                  )}
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Due Date (Optional)</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+              </>
+            )}
+
+            <div className="form-group">
               <label className="form-label">Payment Method</label>
               <div className="payment-methods">
                 <div 
@@ -849,6 +920,18 @@ export default function SalesPOS() {
                 <span className="total-label">Total Amount:</span>
                 <span className="total-value">PKR {calculateGrandTotal().toFixed(2)}</span>
               </div>
+              {paymentType === 'partial' && amountPaid && (
+                <>
+                  <div className="total-row">
+                    <span className="total-label">Amount Paying Now:</span>
+                    <span className="total-value">PKR {parseFloat(amountPaid || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="total-row" style={{ color: '#dc2626' }}>
+                    <span className="total-label">Remaining Amount:</span>
+                    <span className="total-value">PKR {(calculateGrandTotal() - parseFloat(amountPaid || 0)).toFixed(2)}</span>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="form-actions">
