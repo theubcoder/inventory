@@ -19,9 +19,12 @@ export default function ProductManagement() {
     price: '',
     quantity: '',
     minStock: '',
+    unitsPerBox: '10',
     description: '',
     barcode: ''
   });
+  const [inputMethod, setInputMethod] = useState('quantity'); // 'quantity' or 'box'
+  const [boxInput, setBoxInput] = useState({ boxes: '', units: '' });
   const [categoryFormData, setCategoryFormData] = useState({
     name: '',
     description: ''
@@ -76,11 +79,20 @@ export default function ProductManagement() {
     setLoading(true);
     
     try {
+      // Calculate total quantity based on input method
+      let totalQuantity = parseInt(formData.quantity);
+      if (inputMethod === 'box') {
+        const boxes = parseInt(boxInput.boxes) || 0;
+        const extraUnits = parseInt(boxInput.units) || 0;
+        const unitsPerBox = parseInt(formData.unitsPerBox) || 10;
+        totalQuantity = (boxes * unitsPerBox) + extraUnits;
+      }
+      
       const data = {
         ...formData,
         categoryId: formData.categoryId ? parseInt(formData.categoryId) : null,
         price: parseFloat(formData.price),
-        quantity: parseInt(formData.quantity),
+        quantity: totalQuantity,
         minStock: parseInt(formData.minStock),
         unitsPerBox: parseInt(formData.unitsPerBox) || 10
       };
@@ -115,7 +127,9 @@ export default function ProductManagement() {
       }
       
       setShowAddModal(false);
-      setFormData({ name: '', categoryId: '', price: '', quantity: '', minStock: '', description: '', barcode: '' });
+      setFormData({ name: '', categoryId: '', price: '', quantity: '', minStock: '', unitsPerBox: '10', description: '', barcode: '' });
+      setBoxInput({ boxes: '', units: '' });
+      setInputMethod('quantity');
     } catch (error) {
       console.error('Error saving product:', error);
       alert('Error saving product');
@@ -132,8 +146,15 @@ export default function ProductManagement() {
       price: product.price.toString(),
       quantity: product.quantity.toString(),
       minStock: product.minStock.toString(),
+      unitsPerBox: product.unitsPerBox?.toString() || '10',
       description: product.description || '',
       barcode: product.barcode || ''
+    });
+    // Calculate box values for editing
+    const unitsPerBox = product.unitsPerBox || 10;
+    setBoxInput({
+      boxes: Math.floor(product.quantity / unitsPerBox).toString(),
+      units: (product.quantity % unitsPerBox).toString()
     });
     setShowAddModal(true);
   };
@@ -837,7 +858,9 @@ export default function ProductManagement() {
               <button className="close-btn" onClick={() => {
                 setShowAddModal(false);
                 setEditingProduct(null);
-                setFormData({ name: '', categoryId: '', price: '', quantity: '', minStock: '', description: '', barcode: '' });
+                setFormData({ name: '', categoryId: '', price: '', quantity: '', minStock: '', unitsPerBox: '10', description: '', barcode: '' });
+                setBoxInput({ boxes: '', units: '' });
+                setInputMethod('quantity');
               }}>
                 ✕
               </button>
@@ -897,10 +920,39 @@ export default function ProductManagement() {
                   />
                 </div>
               </div>
-              <div className="form-row">
+
+              {/* Input Method Toggle */}
+              <div className="form-group">
+                <label className="form-label">Add Stock By:</label>
+                <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      value="quantity"
+                      checked={inputMethod === 'quantity'}
+                      onChange={(e) => setInputMethod(e.target.value)}
+                      style={{ marginRight: '8px' }}
+                    />
+                    <span style={{ fontSize: '14px' }}>Individual Quantity</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      value="box"
+                      checked={inputMethod === 'box'}
+                      onChange={(e) => setInputMethod(e.target.value)}
+                      style={{ marginRight: '8px' }}
+                    />
+                    <span style={{ fontSize: '14px' }}>Boxes + Units</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Quantity Input Based on Method */}
+              {inputMethod === 'quantity' ? (
                 <div className="form-group">
-                  <label className="form-label">Quantity (Total Units)</label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  <label className="form-label">Total Quantity (in units)</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <input
                       type="number"
                       name="quantity"
@@ -909,33 +961,90 @@ export default function ProductManagement() {
                       onChange={handleInputChange}
                       min="0"
                       required
+                      placeholder="Enter total number of units"
                     />
-                    <span style={{ color: '#6b7280', fontSize: '13px' }}>
-                      = {Math.floor((formData.quantity || 0) / (formData.unitsPerBox || 10))} boxes + {(formData.quantity || 0) % (formData.unitsPerBox || 10)} units
-                    </span>
+                    <div style={{ 
+                      padding: '10px', 
+                      background: '#f3f4f6', 
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      color: '#374151'
+                    }}>
+                      📦 This equals: <strong>{Math.floor((formData.quantity || 0) / (formData.unitsPerBox || 10))} boxes</strong> and <strong>{(formData.quantity || 0) % (formData.unitsPerBox || 10)} loose units</strong>
+                    </div>
                   </div>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Minimum Stock (in Boxes)</label>
-                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              ) : (
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Number of Boxes</label>
                     <input
                       type="number"
-                      value={Math.floor(formData.minStock / (formData.unitsPerBox || 10)) || ''}
+                      value={boxInput.boxes}
                       onChange={(e) => {
+                        setBoxInput({...boxInput, boxes: e.target.value});
                         const boxes = parseInt(e.target.value) || 0;
-                        setFormData({...formData, minStock: (boxes * (parseInt(formData.unitsPerBox) || 10)).toString()});
+                        const units = parseInt(boxInput.units) || 0;
+                        const unitsPerBox = parseInt(formData.unitsPerBox) || 10;
+                        setFormData({...formData, quantity: ((boxes * unitsPerBox) + units).toString()});
                       }}
                       min="0"
-                      required
                       className="form-input"
-                      style={{ flex: 1 }}
-                      placeholder="Number of boxes"
+                      placeholder="How many boxes?"
                     />
-                    <span style={{ color: '#6b7280', fontSize: '14px' }}>
-                      = {formData.minStock || 0} units
-                    </span>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Loose Units</label>
+                    <input
+                      type="number"
+                      value={boxInput.units}
+                      onChange={(e) => {
+                        setBoxInput({...boxInput, units: e.target.value});
+                        const boxes = parseInt(boxInput.boxes) || 0;
+                        const units = parseInt(e.target.value) || 0;
+                        const unitsPerBox = parseInt(formData.unitsPerBox) || 10;
+                        setFormData({...formData, quantity: ((boxes * unitsPerBox) + units).toString()});
+                      }}
+                      min="0"
+                      max={parseInt(formData.unitsPerBox) - 1 || 9}
+                      className="form-input"
+                      placeholder="Extra units"
+                    />
                   </div>
                 </div>
+              )}
+
+              {/* Show Total Calculation */}
+              {inputMethod === 'box' && (boxInput.boxes || boxInput.units) && (
+                <div style={{ 
+                  padding: '12px', 
+                  background: '#dcfce7', 
+                  borderRadius: '8px',
+                  marginBottom: '15px',
+                  fontSize: '14px',
+                  color: '#166534',
+                  textAlign: 'center'
+                }}>
+                  ✅ Total: <strong>{formData.quantity || 0} units</strong> 
+                  ({boxInput.boxes || 0} boxes × {formData.unitsPerBox || 10} units/box + {boxInput.units || 0} loose units)
+                </div>
+              )}
+
+              <div className="form-group">
+                <label className="form-label">Minimum Stock Alert (in units)</label>
+                <input
+                  type="number"
+                  name="minStock"
+                  className="form-input"
+                  value={formData.minStock}
+                  onChange={handleInputChange}
+                  min="0"
+                  required
+                  placeholder="Alert when stock falls below this"
+                />
+                <span style={{ color: '#6b7280', fontSize: '13px', marginTop: '5px', display: 'block' }}>
+                  Alert when stock falls below {Math.floor((formData.minStock || 0) / (formData.unitsPerBox || 10))} boxes and {(formData.minStock || 0) % (formData.unitsPerBox || 10)} units
+                </span>
               </div>
               <div className="form-group">
                 <label className="form-label">Description (Optional)</label>
