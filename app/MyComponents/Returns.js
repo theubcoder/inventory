@@ -190,6 +190,7 @@ export default function Returns() {
         .main-content {
           display: flex;
           gap: 25px;
+          margin-left:0
         }
 
         .left-section {
