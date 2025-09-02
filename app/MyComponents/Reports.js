@@ -234,13 +234,14 @@ export default function Reports() {
           padding: 30px;
           background: #f8f9fa;
           min-height: 100vh;
+          margin: 0;
         }
 
         .header {
           background: white;
           border-radius: 20px;
           padding: 25px;
-          margin-bottom: 30px;
+          margin: 0 0 30px 0;
           box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
         }
 

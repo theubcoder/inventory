@@ -31,6 +31,7 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} ${poppins.variable} antialiased`}
+        suppressHydrationWarning={true}
       >
         <NotificationProvider>
           {children}

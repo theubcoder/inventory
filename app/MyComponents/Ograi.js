@@ -287,10 +287,11 @@ export default function Ograi() {
           padding: 30px;
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
           min-height: 100vh;
+          margin: 0;
         }
 
         .page-header {
-          margin-bottom: 30px;
+          margin: 0 0 30px 0;
         }
 
         .page-title {

@@ -204,6 +204,7 @@ export default function SalesPOS() {
           display: flex;
           height: 100vh;
           background: #f8f9fa;
+          margin: 0;
         }
 
         .left-panel {

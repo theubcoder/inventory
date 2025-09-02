@@ -5,7 +5,7 @@ import { useNotification, useConfirm } from '../components/NotificationSystem';
 import { useLanguage } from '../contexts/LanguageContext';
 
 export default function Returns() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSale, setSelectedSale] = useState(null);
   const [returnItems, setReturnItems] = useState([]);
@@ -176,7 +176,7 @@ export default function Returns() {
   };
 
   return (
-    <div className="returns">
+    <div className="returns" dir={language === 'ur' ? 'rtl' : 'ltr'}>
       <style jsx>{`
         .returns {
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -185,10 +185,11 @@ export default function Returns() {
 
         .returns-container {
           padding: 30px;
+          margin: 0;
         }
 
         .page-header {
-          margin-bottom: 30px;
+          margin: 0 0 30px 0;
         }
 
         .page-title {
@@ -203,10 +204,13 @@ export default function Returns() {
           font-size: 18px;
         }
 
-        .main-content {
+        .returns-main-content {
           display: flex;
-          margin-left: 0;
           gap: 25px;
+        }
+
+        [dir="rtl"] .returns-main-content {
+          flex-direction: row-reverse;
         }
 
         .left-section {
@@ -619,7 +623,7 @@ export default function Returns() {
           <p className="page-subtitle" style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '18px' }}>{t('processReturnsManageRefunds')}</p>
         </div>
         
-        <div className="main-content">
+        <div className="returns-main-content">
           <div className="left-section">
 
           {selectedSale ? (

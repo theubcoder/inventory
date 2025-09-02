@@ -140,13 +140,14 @@ export default function LoanManagement() {
           padding: 30px;
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
           min-height: 100vh;
+          margin: 0;
         }
 
         .page-header {
           background: white;
           border-radius: 20px;
           padding: 25px;
-          margin-bottom: 30px;
+          margin: 0 0 30px 0;
           box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
         }
 

@@ -314,13 +314,14 @@ export default function ProductManagement() {
           padding: 30px;
           background: #f0f2f5;
           min-height: 100vh;
+          margin: 0;
         }
 
         .header {
           background: white;
           border-radius: 20px;
           padding: 25px;
-          margin-bottom: 30px;
+          margin: 0 0 30px 0;
           box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
         }
 

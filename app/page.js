@@ -42,7 +42,9 @@ export default function Home() {
         <div className="main-content" style={{ 
           minHeight: '100vh',
           transition: 'all 0.3s ease',
-          overflow: 'auto'
+          overflow: 'auto',
+          padding: '0',
+          position: 'relative'
         }}>
           {renderContent()}
         </div>
@@ -64,6 +66,8 @@ export default function Home() {
 
         .main-content {
           margin-left: 280px;
+          margin-top: 0;
+          padding-top: 0;
         }
 
         [dir="rtl"] .main-content {
