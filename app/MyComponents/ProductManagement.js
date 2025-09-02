@@ -1,8 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useNotification, useConfirm } from '../components/NotificationSystem';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export default function ProductManagement() {
+  const { showSuccess, showError, showWarning } = useNotification();
+  const { confirm, ConfirmComponent } = useConfirm();
+  const { t } = useLanguage();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -20,6 +25,8 @@ export default function ProductManagement() {
     quantity: '',
     minStock: '',
     unitsPerBox: '10',
+    profitPerUnit: '',
+    profitPerBox: '',
     description: '',
     barcode: ''
   });
@@ -44,9 +51,16 @@ export default function ProductManagement() {
     try {
       const response = await fetch('/api/categories');
       const data = await response.json();
-      setCategories(data);
+      // Ensure data is an array before setting
+      if (Array.isArray(data)) {
+        setCategories(data);
+      } else {
+        console.error('Invalid categories data received:', data);
+        setCategories([]);
+      }
     } catch (error) {
       console.error('Error fetching categories:', error);
+      setCategories([]);
     }
   };
 
@@ -59,9 +73,16 @@ export default function ProductManagement() {
       
       const response = await fetch(url);
       const data = await response.json();
-      setProducts(data);
+      // Ensure data is an array before setting
+      if (Array.isArray(data)) {
+        setProducts(data);
+      } else {
+        console.error('Invalid products data received:', data);
+        setProducts([]);
+      }
     } catch (error) {
       console.error('Error fetching products:', error);
+      setProducts([]);
     } finally {
       setLoading(false);
     }
@@ -94,7 +115,9 @@ export default function ProductManagement() {
         price: parseFloat(formData.price),
         quantity: totalQuantity,
         minStock: parseInt(formData.minStock),
-        unitsPerBox: parseInt(formData.unitsPerBox) || 10
+        unitsPerBox: parseInt(formData.unitsPerBox) || 10,
+        profitPerUnit: parseFloat(formData.profitPerUnit) || 0,
+        profitPerBox: parseFloat(formData.profitPerBox) || 0
       };
 
       if (editingProduct) {
@@ -109,7 +132,7 @@ export default function ProductManagement() {
           await fetchProducts();
           setEditingProduct(null);
         } else {
-          alert('Failed to update product');
+          showError(t('failedToUpdateProduct'));
         }
       } else {
         // Create new product
@@ -122,7 +145,7 @@ export default function ProductManagement() {
         if (response.ok) {
           await fetchProducts();
         } else {
-          alert('Failed to create product');
+          showError(t('failedToCreateProduct'));
         }
       }
       
@@ -132,7 +155,7 @@ export default function ProductManagement() {
       setInputMethod('quantity');
     } catch (error) {
       console.error('Error saving product:', error);
-      alert('Error saving product');
+      showError('Error saving product: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -147,6 +170,8 @@ export default function ProductManagement() {
       quantity: product.quantity.toString(),
       minStock: product.minStock.toString(),
       unitsPerBox: product.unitsPerBox?.toString() || '10',
+      profitPerUnit: product.profitPerUnit?.toString() || '0',
+      profitPerBox: product.profitPerBox?.toString() || '0',
       description: product.description || '',
       barcode: product.barcode || ''
     });
@@ -160,7 +185,14 @@ export default function ProductManagement() {
   };
 
   const handleDelete = async (id) => {
-    if (confirm('Are you sure you want to delete this product?')) {
+    const confirmed = await confirm({
+      title: t('deleteProduct'),
+      message: t('deleteProductConfirm'),
+      confirmText: t('delete'),
+      cancelText: t('cancel')
+    });
+    
+    if (confirmed) {
       try {
         const response = await fetch(`/api/products?id=${id}`, {
           method: 'DELETE'
@@ -168,12 +200,18 @@ export default function ProductManagement() {
         
         if (response.ok) {
           await fetchProducts();
+          showSuccess(t('productDeletedSuccessfully'));
         } else {
-          alert('Failed to delete product');
+          const errorData = await response.json();
+          if (errorData.error && errorData.error.includes('sales or return history')) {
+            showError(t('cannotDeleteProductWithHistory'));
+          } else {
+            showError(errorData.error || t('failedToDeleteProduct'));
+          }
         }
       } catch (error) {
         console.error('Error deleting product:', error);
-        alert('Error deleting product');
+        showError('Error deleting product: ' + error.message);
       }
     }
   };
@@ -203,7 +241,7 @@ export default function ProductManagement() {
           await fetchCategories();
           setEditingCategory(null);
         } else {
-          alert('Failed to update category');
+          showError(t('failedToUpdateCategory'));
         }
       } else {
         // Create new category
@@ -216,7 +254,7 @@ export default function ProductManagement() {
         if (response.ok) {
           await fetchCategories();
         } else {
-          alert('Failed to create category');
+          showError(t('failedToCreateCategory'));
         }
       }
       
@@ -224,7 +262,7 @@ export default function ProductManagement() {
       setCategoryFormData({ name: '', description: '' });
     } catch (error) {
       console.error('Error saving category:', error);
-      alert('Error saving category');
+      showError('Error saving category: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -240,7 +278,14 @@ export default function ProductManagement() {
   };
 
   const handleDeleteCategory = async (id) => {
-    if (confirm('Are you sure you want to delete this category? Products in this category will not be deleted.')) {
+    const confirmed = await confirm({
+      title: t('deleteCategory'),
+      message: t('deleteCategoryConfirm'),
+      confirmText: t('delete'),
+      cancelText: t('cancel')
+    });
+    
+    if (confirmed) {
       try {
         const response = await fetch(`/api/categories?id=${id}`, {
           method: 'DELETE'
@@ -250,11 +295,11 @@ export default function ProductManagement() {
           await fetchCategories();
           await fetchProducts();
         } else {
-          alert('Failed to delete category');
+          showError(t('failedToDeleteCategory'));
         }
       } catch (error) {
         console.error('Error deleting category:', error);
-        alert('Error deleting category');
+        showError('Error deleting category: ' + error.message);
       }
     }
   };
@@ -716,14 +761,14 @@ export default function ProductManagement() {
 
       <div className="header">
         <div className="header-top">
-          <h1 className="page-title">Inventory Management</h1>
+          <h1 className="page-title">{t('inventoryManagement')}</h1>
           {activeTab === 'products' ? (
             <button className="add-product-btn" onClick={() => setShowAddModal(true)}>
-              <span>+</span> Add Product
+              <span>+</span> {t('addProduct')}
             </button>
           ) : (
             <button className="add-product-btn" onClick={() => setShowCategoryModal(true)}>
-              <span>+</span> Add Category
+              <span>+</span> {t('addCategory')}
             </button>
           )}
         </div>
@@ -733,13 +778,13 @@ export default function ProductManagement() {
             className={`tab-btn ${activeTab === 'products' ? 'active' : ''}`}
             onClick={() => setActiveTab('products')}
           >
-            Products
+            {t('products')}
           </button>
           <button 
             className={`tab-btn ${activeTab === 'categories' ? 'active' : ''}`}
             onClick={() => setActiveTab('categories')}
           >
-            Categories
+            {t('categories')}
           </button>
         </div>
 
@@ -750,7 +795,7 @@ export default function ProductManagement() {
               <input
                 type="text"
                 className="search-input"
-                placeholder="Search products..."
+                placeholder={t('searchProducts')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -760,7 +805,7 @@ export default function ProductManagement() {
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
             >
-              <option value="all">All Categories</option>
+              <option value="all">{t('allCategories')}</option>
               {categories.map(cat => (
                 <option key={cat.id} value={cat.name}>{cat.name}</option>
               ))}
@@ -773,11 +818,11 @@ export default function ProductManagement() {
         <div className="products-grid">
         {loading ? (
           <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '40px' }}>
-            <div style={{ fontSize: '18px', color: '#6b7280' }}>Loading products...</div>
+            <div style={{ fontSize: '18px', color: '#6b7280' }}>{t('loadingProducts')}</div>
           </div>
         ) : filteredProducts.length === 0 ? (
           <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '40px' }}>
-            <div style={{ fontSize: '18px', color: '#6b7280' }}>No products found</div>
+            <div style={{ fontSize: '18px', color: '#6b7280' }}>{t('noProductsFound')}</div>
           </div>
         ) : filteredProducts.map(product => (
           <div key={product.id} className="product-card">
@@ -789,32 +834,32 @@ export default function ProductManagement() {
             </div>
             <div className="product-details">
               <div className="detail-row">
-                <span className="detail-label">Category:</span>
+                <span className="detail-label">{t('category')}:</span>
                 <span className="detail-value">{product.category?.name || 'N/A'}</span>
               </div>
               <div className="detail-row">
-                <span className="detail-label">Price:</span>
+                <span className="detail-label">{t('price')}:</span>
                 <span className="detail-value">PKR {product.price.toLocaleString()}</span>
               </div>
               <div className="detail-row">
-                <span className="detail-label">Stock:</span>
+                <span className="detail-label">{t('stock')}:</span>
                 <span className="detail-value">
-                  {Math.floor(product.quantity / 10)} boxes ({product.quantity} units)
+                  {Math.floor(product.quantity / 10)} {t('boxes')} ({product.quantity} {t('units')})
                 </span>
               </div>
               <div className="detail-row">
-                <span className="detail-label">Min Stock:</span>
+                <span className="detail-label">{t('minStock')}:</span>
                 <span className="detail-value">
-                  {Math.floor(product.minStock / 10)} boxes ({product.minStock} units)
+                  {Math.floor(product.minStock / 10)} {t('boxes')} ({product.minStock} {t('units')})
                 </span>
               </div>
             </div>
             <div className="product-actions">
               <button className="action-btn edit-btn" onClick={() => handleEdit(product)}>
-                Edit
+                {t('edit')}
               </button>
               <button className="action-btn delete-btn" onClick={() => handleDelete(product.id)}>
-                Delete
+                {t('delete')}
               </button>
             </div>
           </div>
@@ -824,7 +869,7 @@ export default function ProductManagement() {
         <div className="category-grid">
           {categories.length === 0 ? (
             <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '40px' }}>
-              <div style={{ fontSize: '18px', color: '#6b7280' }}>No categories found</div>
+              <div style={{ fontSize: '18px', color: '#6b7280' }}>{t('noCategoriesFound')}</div>
             </div>
           ) : categories.map(category => (
             <div key={category.id} className="category-card">
@@ -833,14 +878,14 @@ export default function ProductManagement() {
                 <div className="category-description">{category.description}</div>
               )}
               <div className="category-count">
-                {category.products ? `${category.products.length} Products` : '0 Products'}
+                {category.products ? `${category.products.length} ${t('products')}` : `0 ${t('products')}`}
               </div>
               <div className="category-actions">
                 <button className="action-btn edit-btn" onClick={() => handleEditCategory(category)}>
-                  Edit
+                  {t('edit')}
                 </button>
                 <button className="action-btn delete-btn" onClick={() => handleDeleteCategory(category.id)}>
-                  Delete
+                  {t('delete')}
                 </button>
               </div>
             </div>
@@ -853,7 +898,7 @@ export default function ProductManagement() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2 className="modal-title">
-                {editingProduct ? 'Edit Product' : 'Add New Product'}
+                {editingProduct ? t('editProduct') : t('addNewProduct')}
               </h2>
               <button className="close-btn" onClick={() => {
                 setShowAddModal(false);
@@ -867,7 +912,7 @@ export default function ProductManagement() {
             </div>
             <form onSubmit={handleSubmit}>
               <div className="form-group">
-                <label className="form-label">Product Name</label>
+                <label className="form-label">{t('productName')}</label>
                 <input
                   type="text"
                   name="name"
@@ -878,7 +923,7 @@ export default function ProductManagement() {
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Category</label>
+                <label className="form-label">{t('category')}</label>
                 <select
                   name="categoryId"
                   className="form-select"
@@ -886,7 +931,7 @@ export default function ProductManagement() {
                   onChange={handleInputChange}
                   required
                 >
-                  <option value="">Select Category</option>
+                  <option value="">{t('selectCategory')}</option>
                   {categories.map(cat => (
                     <option key={cat.id} value={cat.id}>{cat.name}</option>
                   ))}
@@ -894,7 +939,7 @@ export default function ProductManagement() {
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Price (PKR)</label>
+                  <label className="form-label">{t('price')} (PKR)</label>
                   <input
                     type="number"
                     name="price"
@@ -907,7 +952,7 @@ export default function ProductManagement() {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Units Per Box</label>
+                  <label className="form-label">{t('unitsPerBox')}</label>
                   <input
                     type="number"
                     name="unitsPerBox"
@@ -916,14 +961,44 @@ export default function ProductManagement() {
                     onChange={handleInputChange}
                     min="1"
                     required
-                    placeholder="How many units in one box?"
+                    placeholder={t('howManyUnitsInBox')}
+                  />
+                </div>
+              </div>
+              
+              {/* Profit Fields */}
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">{t('profitPerUnit')}</label>
+                  <input
+                    type="number"
+                    name="profitPerUnit"
+                    className="form-input"
+                    value={formData.profitPerUnit}
+                    onChange={handleInputChange}
+                    min="0"
+                    step="0.01"
+                    placeholder={t('profitEarnedPerUnit')}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">{t('profitPerBox')}</label>
+                  <input
+                    type="number"
+                    name="profitPerBox"
+                    className="form-input"
+                    value={formData.profitPerBox}
+                    onChange={handleInputChange}
+                    min="0"
+                    step="0.01"
+                    placeholder={t('profitEarnedPerBox')}
                   />
                 </div>
               </div>
 
               {/* Input Method Toggle */}
               <div className="form-group">
-                <label className="form-label">Add Stock By:</label>
+                <label className="form-label">{t('addStockBy')}</label>
                 <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
                   <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
                     <input
@@ -933,7 +1008,7 @@ export default function ProductManagement() {
                       onChange={(e) => setInputMethod(e.target.value)}
                       style={{ marginRight: '8px' }}
                     />
-                    <span style={{ fontSize: '14px' }}>Individual Quantity</span>
+                    <span style={{ fontSize: '14px' }}>{t('individualQuantity')}</span>
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
                     <input
@@ -943,7 +1018,7 @@ export default function ProductManagement() {
                       onChange={(e) => setInputMethod(e.target.value)}
                       style={{ marginRight: '8px' }}
                     />
-                    <span style={{ fontSize: '14px' }}>Boxes + Units</span>
+                    <span style={{ fontSize: '14px' }}>{t('boxesUnits')}</span>
                   </label>
                 </div>
               </div>
@@ -951,7 +1026,7 @@ export default function ProductManagement() {
               {/* Quantity Input Based on Method */}
               {inputMethod === 'quantity' ? (
                 <div className="form-group">
-                  <label className="form-label">Total Quantity (in units)</label>
+                  <label className="form-label">{t('totalQuantityUnits')}</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <input
                       type="number"
@@ -961,7 +1036,7 @@ export default function ProductManagement() {
                       onChange={handleInputChange}
                       min="0"
                       required
-                      placeholder="Enter total number of units"
+                      placeholder={t('enterTotalUnits')}
                     />
                     <div style={{ 
                       padding: '10px', 
@@ -970,14 +1045,14 @@ export default function ProductManagement() {
                       fontSize: '14px',
                       color: '#374151'
                     }}>
-                      📦 This equals: <strong>{Math.floor((formData.quantity || 0) / (formData.unitsPerBox || 10))} boxes</strong> and <strong>{(formData.quantity || 0) % (formData.unitsPerBox || 10)} loose units</strong>
+                      📦 {t('thisEquals')} <strong>{Math.floor((formData.quantity || 0) / (formData.unitsPerBox || 10))} {t('boxes')}</strong> {t('and')} <strong>{(formData.quantity || 0) % (formData.unitsPerBox || 10)} {t('looseUnits')}</strong>
                     </div>
                   </div>
                 </div>
               ) : (
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">Number of Boxes</label>
+                    <label className="form-label">{t('numberOfBoxes')}</label>
                     <input
                       type="number"
                       value={boxInput.boxes}
@@ -990,11 +1065,11 @@ export default function ProductManagement() {
                       }}
                       min="0"
                       className="form-input"
-                      placeholder="How many boxes?"
+                      placeholder={t('howManyBoxes')}
                     />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Loose Units</label>
+                    <label className="form-label">{t('looseUnits')}</label>
                     <input
                       type="number"
                       value={boxInput.units}
@@ -1008,7 +1083,7 @@ export default function ProductManagement() {
                       min="0"
                       max={parseInt(formData.unitsPerBox) - 1 || 9}
                       className="form-input"
-                      placeholder="Extra units"
+                      placeholder={t('extraUnits')}
                     />
                   </div>
                 </div>
@@ -1025,13 +1100,13 @@ export default function ProductManagement() {
                   color: '#166534',
                   textAlign: 'center'
                 }}>
-                  ✅ Total: <strong>{formData.quantity || 0} units</strong> 
-                  ({boxInput.boxes || 0} boxes × {formData.unitsPerBox || 10} units/box + {boxInput.units || 0} loose units)
+                  ✅ {t('total')}: <strong>{formData.quantity || 0} {t('units')}</strong> 
+                  ({boxInput.boxes || 0} {t('boxes')} × {formData.unitsPerBox || 10} {t('units')}/{t('boxes').toLowerCase()} + {boxInput.units || 0} {t('looseUnits')})
                 </div>
               )}
 
               <div className="form-group">
-                <label className="form-label">Minimum Stock Alert (in units)</label>
+                <label className="form-label">{t('minimumStockAlert')}</label>
                 <input
                   type="number"
                   name="minStock"
@@ -1040,14 +1115,14 @@ export default function ProductManagement() {
                   onChange={handleInputChange}
                   min="0"
                   required
-                  placeholder="Alert when stock falls below this"
+                  placeholder={t('alertWhenStockFallsBelow')}
                 />
                 <span style={{ color: '#6b7280', fontSize: '13px', marginTop: '5px', display: 'block' }}>
-                  Alert when stock falls below {Math.floor((formData.minStock || 0) / (formData.unitsPerBox || 10))} boxes and {(formData.minStock || 0) % (formData.unitsPerBox || 10)} units
+                  {t('alertWhenStockFalls')} {Math.floor((formData.minStock || 0) / (formData.unitsPerBox || 10))} {t('boxes')} {t('and')} {(formData.minStock || 0) % (formData.unitsPerBox || 10)} {t('units')}
                 </span>
               </div>
               <div className="form-group">
-                <label className="form-label">Description (Optional)</label>
+                <label className="form-label">{t('descriptionOptional')}</label>
                 <textarea
                   name="description"
                   className="form-textarea"
@@ -1057,14 +1132,14 @@ export default function ProductManagement() {
               </div>
               <div className="form-actions">
                 <button type="submit" className="submit-btn">
-                  {editingProduct ? 'Update Product' : 'Add Product'}
+                  {editingProduct ? t('updateProduct') : t('addProduct')}
                 </button>
                 <button type="button" className="cancel-btn" onClick={() => {
                   setShowAddModal(false);
                   setEditingProduct(null);
                   setFormData({ name: '', categoryId: '', price: '', quantity: '', minStock: '', description: '', barcode: '' });
                 }}>
-                  Cancel
+                  {t('cancel')}
                 </button>
               </div>
             </form>
@@ -1077,7 +1152,7 @@ export default function ProductManagement() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2 className="modal-title">
-                {editingCategory ? 'Edit Category' : 'Add New Category'}
+                {editingCategory ? t('editCategory') : t('addNewCategory')}
               </h2>
               <button className="close-btn" onClick={() => {
                 setShowCategoryModal(false);
@@ -1089,43 +1164,44 @@ export default function ProductManagement() {
             </div>
             <form onSubmit={handleCategorySubmit}>
               <div className="form-group">
-                <label className="form-label">Category Name *</label>
+                <label className="form-label">{t('categoryName')} *</label>
                 <input
                   type="text"
                   name="name"
                   className="form-input"
                   value={categoryFormData.name}
                   onChange={handleCategoryInputChange}
-                  placeholder="Enter category name"
+                  placeholder={t('enterCategoryName')}
                   required
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Description</label>
+                <label className="form-label">{t('description')}</label>
                 <textarea
                   name="description"
                   className="form-textarea"
                   value={categoryFormData.description}
                   onChange={handleCategoryInputChange}
-                  placeholder="Enter category description (optional)"
+                  placeholder={t('enterCategoryDescription')}
                 />
               </div>
               <div className="form-actions">
                 <button type="submit" className="submit-btn" disabled={loading}>
-                  {loading ? 'Saving...' : (editingCategory ? 'Update Category' : 'Add Category')}
+                  {loading ? t('saving') : (editingCategory ? t('updateCategory') : t('addCategory'))}
                 </button>
                 <button type="button" className="cancel-btn" onClick={() => {
                   setShowCategoryModal(false);
                   setEditingCategory(null);
                   setCategoryFormData({ name: '', description: '' });
                 }}>
-                  Cancel
+                  {t('cancel')}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+      <ConfirmComponent />
     </div>
   );
 }

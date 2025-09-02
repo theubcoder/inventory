@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useNotification, useConfirm } from '../components/NotificationSystem';
 
 export default function Ograi() {
   const { t, language } = useLanguage();
+  const { showSuccess, showError, showWarning, showInfo } = useNotification();
+  const { confirm, ConfirmComponent } = useConfirm();
   const [suppliers, setSuppliers] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
@@ -120,15 +123,15 @@ export default function Ograi() {
         fetchTransactions();
         setShowAddForm(false);
         resetForm();
-        alert('Transaction saved successfully!');
+        showSuccess('Transaction saved successfully!');
       } else {
         const errorData = await response.json();
         console.error('Server error:', errorData);
-        alert(`Error saving transaction: ${errorData.details || errorData.error}`);
+        showError(`Error saving transaction: ${errorData.details || errorData.error}`);
       }
     } catch (error) {
       console.error('Error saving transaction:', error);
-      alert('Error saving transaction. Please check console for details.');
+      showError('Error saving transaction. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -161,16 +164,20 @@ export default function Ograi() {
     // Validate payment amounts
     const paymentAmount = parseFloat(paymentData.paymentAmount || 0);
     const transportPayment = parseFloat(paymentData.transportPayment || 0);
-    const remainingAmount = parseFloat(selectedTransaction.remainingAmount);
-    const transportRemaining = parseFloat(selectedTransaction.transportRemaining);
+    const remainingAmount = parseFloat(selectedTransaction.remainingAmount || 0);
+    const transportRemaining = parseFloat(selectedTransaction.transportRemaining || 0);
     
+    // Check if payment exceeds remaining amount
     if (paymentAmount > remainingAmount) {
-      alert(`Payment amount cannot exceed remaining amount of PKR ${remainingAmount.toLocaleString()}`);
+      showError(`Payment amount (PKR ${paymentAmount}) cannot exceed remaining amount of PKR ${remainingAmount.toLocaleString()}`);
+      setPaymentData({...paymentData, paymentAmount: remainingAmount.toString()});
       return;
     }
     
+    // Check if transport payment exceeds remaining transport
     if (transportPayment > transportRemaining) {
-      alert(`Transport payment cannot exceed remaining transport amount of PKR ${transportRemaining.toLocaleString()}`);
+      showError(`Transport payment (PKR ${transportPayment}) cannot exceed remaining transport amount of PKR ${transportRemaining.toLocaleString()}`);
+      setPaymentData({...paymentData, transportPayment: transportRemaining.toString()});
       return;
     }
     
@@ -207,14 +214,14 @@ export default function Ograi() {
           paymentMethod: 'cash',
           notes: ''
         });
-        alert('Payment recorded successfully!');
+        showSuccess('Payment recorded successfully!');
       } else {
         const errorData = await response.json();
-        alert(`Error recording payment: ${errorData.error}`);
+        showError(`Error recording payment: ${errorData.error}`);
       }
     } catch (error) {
       console.error('Error recording payment:', error);
-      alert('Error recording payment. Please try again.');
+      showError('Error recording payment. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -229,6 +236,38 @@ export default function Ograi() {
     setSelectedTransaction(transaction);
     await fetchPaymentHistory(transaction.id);
     setShowPaymentHistory(true);
+  };
+
+  const handleDeleteTransaction = async (transactionId) => {
+    const confirmed = await confirm({
+      title: 'Delete Transaction',
+      message: 'Are you sure you want to delete this fully paid transaction?',
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    });
+
+    if (!confirmed) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/ograi/transactions?id=${transactionId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (response.ok) {
+        showSuccess('Transaction deleted successfully!');
+        fetchTransactions();
+      } else {
+        const errorData = await response.json();
+        showError(`Failed to delete transaction: ${errorData.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error deleting transaction:', error);
+      showError('Failed to delete transaction. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getSupplierSummary = (supplierName) => {
@@ -763,8 +802,8 @@ export default function Ograi() {
       `}</style>
 
       <div className="page-header">
-        <h1 className="page-title">Ograi - Supplier Payment Tracking</h1>
-        <p className="page-subtitle">Manage supplier purchases, payments, and transport charges</p>
+        <h1 className="page-title">{t('ograiSupplierTracking')}</h1>
+        <p className="page-subtitle">{t('manageSupplierPurchases')}</p>
       </div>
 
       <div className="action-bar">
@@ -773,7 +812,7 @@ export default function Ograi() {
           <input
             type="text"
             className="search-input"
-            placeholder="Search by supplier name or product..."
+            placeholder={t('searchBySupplier')}
             onChange={(e) => {
               const searchTerm = e.target.value.toLowerCase();
               // Filter logic here
@@ -781,35 +820,35 @@ export default function Ograi() {
           />
         </div>
         <button className="add-btn" onClick={() => setShowAddForm(true)}>
-          <span>➕</span> Add New Transaction
+          <span>➕</span> {t('addNewTransaction')}
         </button>
       </div>
 
       <div className="summary-cards">
         <div className="summary-card">
           <div className="summary-icon icon-purchases">💰</div>
-          <div className="summary-label">Total Purchases</div>
+          <div className="summary-label">{t('totalPurchases')}</div>
           <div className="summary-value">
             PKR {transactions.reduce((sum, t) => sum + t.totalAmount, 0).toLocaleString()}
           </div>
         </div>
         <div className="summary-card">
           <div className="summary-icon icon-paid">✅</div>
-          <div className="summary-label">Total Paid</div>
+          <div className="summary-label">{t('totalPaid')}</div>
           <div className="summary-value">
             PKR {transactions.reduce((sum, t) => sum + t.amountPaid, 0).toLocaleString()}
           </div>
         </div>
         <div className="summary-card">
           <div className="summary-icon icon-due">⏳</div>
-          <div className="summary-label">Total Due</div>
+          <div className="summary-label">{t('totalDue')}</div>
           <div className="summary-value">
             PKR {transactions.reduce((sum, t) => sum + t.remainingAmount, 0).toLocaleString()}
           </div>
         </div>
         <div className="summary-card">
           <div className="summary-icon icon-transport">🚚</div>
-          <div className="summary-label">Transport Due</div>
+          <div className="summary-label">{t('transportDue')}</div>
           <div className="summary-value">
             PKR {transactions.reduce((sum, t) => sum + t.transportRemaining, 0).toLocaleString()}
           </div>
@@ -818,7 +857,7 @@ export default function Ograi() {
 
       {suppliers.length > 0 && (
         <div className="suppliers-section">
-          <h2 className="section-title">Suppliers Overview</h2>
+          <h2 className="section-title">{t('suppliersOverview')}</h2>
           <div className="suppliers-grid">
             {suppliers.map(supplier => {
               const summary = getSupplierSummary(supplier.name);
@@ -831,11 +870,11 @@ export default function Ograi() {
                   <div className="supplier-name">{supplier.name}</div>
                   <div className="supplier-info">
                     <div className="info-item">
-                      <div className="info-label">Total Due</div>
+                      <div className="info-label">{t('totalDue')}</div>
                       <div className="info-value">PKR {summary.totalRemaining.toLocaleString()}</div>
                     </div>
                     <div className="info-item">
-                      <div className="info-label">Transport Due</div>
+                      <div className="info-label">{t('transportDue')}</div>
                       <div className="info-value">PKR {summary.totalTransportDue.toLocaleString()}</div>
                     </div>
                   </div>
@@ -847,22 +886,22 @@ export default function Ograi() {
       )}
 
       <div className="transactions-table">
-        <h2 className="section-title">Transaction History</h2>
+        <h2 className="section-title">{t('transactionHistory')}</h2>
         {transactions.length > 0 ? (
           <div className="table-wrapper">
             <table>
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Supplier</th>
-                  <th>Product</th>
-                  <th>Quantity</th>
-                  <th>Total Amount</th>
-                  <th>Paid</th>
-                  <th>Remaining</th>
-                  <th>Transport</th>
-                  <th>Status</th>
-                  <th>Actions</th>
+                  <th>{t('date')}</th>
+                  <th>{t('supplier')}</th>
+                  <th>{t('product')}</th>
+                  <th>{t('quantity')}</th>
+                  <th>{t('totalAmount')}</th>
+                  <th>{t('paid')}</th>
+                  <th>{t('remaining')}</th>
+                  <th>{t('transport')}</th>
+                  <th>{t('status')}</th>
+                  <th>{t('actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -884,14 +923,14 @@ export default function Ograi() {
                         transaction.overpaidAmount > 0 ? 'status-overpaid' : 
                         'status-pending'
                       }`}>
-                        {transaction.remainingAmount === 0 && transaction.transportRemaining === 0 ? 'Complete' : 
-                         transaction.overpaidAmount > 0 ? 'Overpaid' : 
-                         'Pending'}
+                        {transaction.remainingAmount === 0 && transaction.transportRemaining === 0 ? t('complete') : 
+                         transaction.overpaidAmount > 0 ? t('overpaid') : 
+                         t('pending')}
                       </span>
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: '8px' }}>
-                        {(transaction.remainingAmount > 0 || transaction.transportRemaining > 0) && (
+                        {(transaction.remainingAmount > 0 || transaction.transportRemaining > 0) ? (
                           <button
                             className="payment-btn"
                             onClick={() => openPaymentModal(transaction)}
@@ -905,7 +944,23 @@ export default function Ograi() {
                               cursor: 'pointer'
                             }}
                           >
-                            💵 Pay
+                            💵 {t('pay')}
+                          </button>
+                        ) : (
+                          <button
+                            className="delete-btn"
+                            onClick={() => handleDeleteTransaction(transaction.id)}
+                            style={{
+                              padding: '6px 12px',
+                              fontSize: '12px',
+                              background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '6px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            🗑️ {t('delete')}
                           </button>
                         )}
                         <button
@@ -921,7 +976,7 @@ export default function Ograi() {
                             cursor: 'pointer'
                           }}
                         >
-                          📜 History
+                          📜 {t('history')}
                         </button>
                       </div>
                     </td>
@@ -933,8 +988,8 @@ export default function Ograi() {
         ) : (
           <div className="empty-state">
             <div className="empty-icon">📋</div>
-            <div className="empty-title">No transactions yet</div>
-            <div className="empty-description">Add your first supplier transaction to get started</div>
+            <div className="empty-title">{t('noTransactionsYet')}</div>
+            <div className="empty-description">{t('addFirstSupplierTransaction')}</div>
           </div>
         )}
       </div>
@@ -945,14 +1000,14 @@ export default function Ograi() {
         }}>
           <div className="modal-content">
             <div className="modal-header">
-              <h2 className="modal-title">Add New Transaction</h2>
+              <h2 className="modal-title">{t('addNewTransaction')}</h2>
               <button className="close-btn" onClick={() => setShowAddForm(false)}>✕</button>
             </div>
 
             <form onSubmit={handleSubmit}>
               <div className="form-grid">
                 <div className="form-group">
-                  <label className="form-label">Supplier Name *</label>
+                  <label className="form-label">{t('supplierName')} *</label>
                   <input
                     type="text"
                     className="form-input"
@@ -963,7 +1018,7 @@ export default function Ograi() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Contact Number</label>
+                  <label className="form-label">{t('contactNumber')}</label>
                   <input
                     type="tel"
                     className="form-input"
@@ -973,7 +1028,7 @@ export default function Ograi() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Transaction Date *</label>
+                  <label className="form-label">{t('transactionDate')} *</label>
                   <input
                     type="date"
                     className="form-input"
@@ -984,7 +1039,7 @@ export default function Ograi() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Product Name *</label>
+                  <label className="form-label">{t('productName')} *</label>
                   <input
                     type="text"
                     className="form-input"
@@ -995,7 +1050,7 @@ export default function Ograi() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Quantity *</label>
+                  <label className="form-label">{t('quantity')} *</label>
                   <input
                     type="number"
                     className="form-input"
@@ -1006,7 +1061,7 @@ export default function Ograi() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Price per Unit *</label>
+                  <label className="form-label">{t('pricePerUnit')} *</label>
                   <input
                     type="number"
                     className="form-input"
@@ -1017,7 +1072,7 @@ export default function Ograi() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Total Amount</label>
+                  <label className="form-label">{t('totalAmount')}</label>
                   <input
                     type="number"
                     className="form-input"
@@ -1027,7 +1082,7 @@ export default function Ograi() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Amount Paid *</label>
+                  <label className="form-label">{t('amountPaid')} *</label>
                   <input
                     type="number"
                     className="form-input"
@@ -1038,7 +1093,7 @@ export default function Ograi() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Remaining Amount</label>
+                  <label className="form-label">{t('remainingAmount')}</label>
                   <input
                     type="number"
                     className="form-input"
@@ -1048,7 +1103,7 @@ export default function Ograi() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Transport/Rent Fee</label>
+                  <label className="form-label">{t('transportFee')}</label>
                   <input
                     type="number"
                     className="form-input"
@@ -1058,7 +1113,7 @@ export default function Ograi() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Transport Paid</label>
+                  <label className="form-label">{t('transportPaid')}</label>
                   <input
                     type="number"
                     className="form-input"
@@ -1068,7 +1123,7 @@ export default function Ograi() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Transport Remaining</label>
+                  <label className="form-label">{t('transportRemaining')}</label>
                   <input
                     type="number"
                     className="form-input"
@@ -1078,65 +1133,65 @@ export default function Ograi() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Payment Method</label>
+                  <label className="form-label">{t('paymentMethod')}</label>
                   <select
                     className="form-select"
                     value={formData.paymentMethod}
                     onChange={(e) => setFormData({...formData, paymentMethod: e.target.value})}
                   >
-                    <option value="cash">Cash</option>
-                    <option value="bank">Bank Transfer</option>
-                    <option value="cheque">Cheque</option>
+                    <option value="cash">{t('cash')}</option>
+                    <option value="bank">{t('bankTransfer')}</option>
+                    <option value="cheque">{t('cheque')}</option>
                   </select>
                 </div>
 
                 <div className="form-group full-width">
-                  <label className="form-label">Notes</label>
+                  <label className="form-label">{t('notes')}</label>
                   <textarea
                     className="form-textarea"
                     value={formData.notes}
                     onChange={(e) => setFormData({...formData, notes: e.target.value})}
-                    placeholder="Any additional notes or agreements..."
+                    placeholder={t('anyAdditionalNotes')}
                   />
                 </div>
               </div>
 
               <div className="summary-section">
-                <h3 className="summary-title">Transaction Summary</h3>
+                <h3 className="summary-title">{t('transactionSummary')}</h3>
                 <div className="summary-row">
-                  <span className="summary-row-label">Total Purchase Amount</span>
+                  <span className="summary-row-label">{t('totalPurchaseAmount')}</span>
                   <span className="summary-row-value">PKR {formData.totalAmount.toLocaleString()}</span>
                 </div>
                 <div className="summary-row">
-                  <span className="summary-row-label">Amount Paid</span>
+                  <span className="summary-row-label">{t('amountPaid')}</span>
                   <span className="summary-row-value">PKR {parseFloat(formData.amountPaid || 0).toLocaleString()}</span>
                 </div>
                 <div className="summary-row">
-                  <span className="summary-row-label">Remaining Amount</span>
+                  <span className="summary-row-label">{t('remainingAmount')}</span>
                   <span className="summary-row-value">PKR {formData.remainingAmount.toLocaleString()}</span>
                 </div>
                 {formData.overpaidAmount > 0 && (
                   <div className="summary-row">
-                    <span className="summary-row-label">Overpaid Amount</span>
+                    <span className="summary-row-label">{t('overpaidAmount')}</span>
                     <span className="summary-row-value">PKR {formData.overpaidAmount.toLocaleString()}</span>
                   </div>
                 )}
                 <div className="summary-row">
-                  <span className="summary-row-label">Transport Fee</span>
+                  <span className="summary-row-label">{t('transportFee')}</span>
                   <span className="summary-row-value">PKR {parseFloat(formData.transportFee || 0).toLocaleString()}</span>
                 </div>
                 <div className="summary-row">
-                  <span className="summary-row-label">Transport Remaining</span>
+                  <span className="summary-row-label">{t('transportRemaining')}</span>
                   <span className="summary-row-value">PKR {formData.transportRemaining.toLocaleString()}</span>
                 </div>
               </div>
 
               <div className="form-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowAddForm(false)}>
-                  Cancel
+                  {t('cancel')}
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={loading}>
-                  {loading ? 'Saving...' : 'Save Transaction'}
+                  {loading ? t('saving') : t('saveTransaction')}
                 </button>
               </div>
             </form>
@@ -1150,12 +1205,12 @@ export default function Ograi() {
         }}>
           <div className="modal-content">
             <div className="modal-header">
-              <h2 className="modal-title">Payment History</h2>
+              <h2 className="modal-title">{t('paymentHistory')}</h2>
               <button className="close-btn" onClick={() => setShowPaymentHistory(false)}>✕</button>
             </div>
 
             <div style={{ marginBottom: '20px', padding: '15px', background: '#f9fafb', borderRadius: '10px' }}>
-              <h3 style={{ fontSize: '16px', marginBottom: '10px', color: '#374151' }}>Transaction Details</h3>
+              <h3 style={{ fontSize: '16px', marginBottom: '10px', color: '#374151' }}>{t('transactionDetails')}</h3>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '14px' }}>
                 <div>
                   <span style={{ color: '#6b7280' }}>Supplier: </span>
@@ -1191,18 +1246,18 @@ export default function Ograi() {
                     <tr>
                       <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>Payment #</th>
                       <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>Date</th>
-                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>Product Payment</th>
-                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>Transport Payment</th>
-                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>Total Payment</th>
-                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>Method</th>
-                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>Notes</th>
+                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>{t('productPayment')}</th>
+                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>{t('transportPayment')}</th>
+                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>{t('totalPayment')}</th>
+                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>{t('method')}</th>
+                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>{t('notes')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {paymentHistory.map((payment, index) => (
                       <tr key={payment.id}>
                         <td style={{ padding: '10px', borderBottom: '1px solid #f3f4f6' }}>
-                          Installment {paymentHistory.length - index}
+                          {t('installment')} {paymentHistory.length - index}
                         </td>
                         <td style={{ padding: '10px', borderBottom: '1px solid #f3f4f6' }}>
                           {new Date(payment.paymentDate).toLocaleDateString()}
@@ -1230,14 +1285,14 @@ export default function Ograi() {
             ) : (
               <div className="empty-state">
                 <div className="empty-icon">💳</div>
-                <div className="empty-title">No payment history</div>
-                <div className="empty-description">No payments have been made for this transaction yet</div>
+                <div className="empty-title">{t('noPaymentHistory')}</div>
+                <div className="empty-description">{t('noPaymentsMade')}</div>
               </div>
             )}
 
             <div className="form-actions" style={{ marginTop: '20px' }}>
               <button type="button" className="btn btn-secondary" onClick={() => setShowPaymentHistory(false)}>
-                Close
+                {t('close')}
               </button>
             </div>
           </div>
@@ -1255,7 +1310,7 @@ export default function Ograi() {
             </div>
 
             <div style={{ marginBottom: '20px', padding: '15px', background: '#f9fafb', borderRadius: '10px' }}>
-              <h3 style={{ fontSize: '16px', marginBottom: '10px', color: '#374151' }}>Transaction Details</h3>
+              <h3 style={{ fontSize: '16px', marginBottom: '10px', color: '#374151' }}>{t('transactionDetails')}</h3>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '14px' }}>
                 <div>
                   <span style={{ color: '#6b7280' }}>Supplier: </span>
@@ -1293,13 +1348,26 @@ export default function Ograi() {
                     className="form-input"
                     value={paymentData.paymentAmount}
                     onChange={(e) => {
-                      const value = parseFloat(e.target.value || 0);
-                      const maxAmount = parseFloat(selectedTransaction.remainingAmount);
+                      const inputValue = e.target.value;
+                      const value = parseFloat(inputValue || 0);
+                      const maxAmount = parseFloat(selectedTransaction?.remainingAmount || 0);
+                      
                       if (value > maxAmount) {
-                        alert(`Payment amount cannot exceed PKR ${maxAmount.toLocaleString()}`);
-                        return;
+                        showWarning(`Payment amount cannot exceed PKR ${maxAmount.toLocaleString()}`);
+                        const cappedValue = maxAmount.toString();
+                        setPaymentData({...paymentData, paymentAmount: cappedValue});
+                        e.target.value = cappedValue;
+                      } else {
+                        setPaymentData({...paymentData, paymentAmount: inputValue});
                       }
-                      setPaymentData({...paymentData, paymentAmount: e.target.value});
+                    }}
+                    onBlur={(e) => {
+                      const value = parseFloat(e.target.value || 0);
+                      const maxAmount = parseFloat(selectedTransaction?.remainingAmount || 0);
+                      if (value > maxAmount) {
+                        setPaymentData({...paymentData, paymentAmount: maxAmount.toString()});
+                        e.target.value = maxAmount.toString();
+                      }
                     }}
                     max={selectedTransaction.remainingAmount}
                     placeholder={`Max: PKR ${parseFloat(selectedTransaction.remainingAmount).toLocaleString()}`}
@@ -1314,13 +1382,26 @@ export default function Ograi() {
                     className="form-input"
                     value={paymentData.transportPayment}
                     onChange={(e) => {
-                      const value = parseFloat(e.target.value || 0);
-                      const maxAmount = parseFloat(selectedTransaction.transportRemaining);
+                      const inputValue = e.target.value;
+                      const value = parseFloat(inputValue || 0);
+                      const maxAmount = parseFloat(selectedTransaction?.transportRemaining || 0);
+                      
                       if (value > maxAmount) {
-                        alert(`Transport payment cannot exceed PKR ${maxAmount.toLocaleString()}`);
-                        return;
+                        showWarning(`Transport payment cannot exceed PKR ${maxAmount.toLocaleString()}`);
+                        const cappedValue = maxAmount.toString();
+                        setPaymentData({...paymentData, transportPayment: cappedValue});
+                        e.target.value = cappedValue;
+                      } else {
+                        setPaymentData({...paymentData, transportPayment: inputValue});
                       }
-                      setPaymentData({...paymentData, transportPayment: e.target.value});
+                    }}
+                    onBlur={(e) => {
+                      const value = parseFloat(e.target.value || 0);
+                      const maxAmount = parseFloat(selectedTransaction?.transportRemaining || 0);
+                      if (value > maxAmount) {
+                        setPaymentData({...paymentData, transportPayment: maxAmount.toString()});
+                        e.target.value = maxAmount.toString();
+                      }
                     }}
                     max={selectedTransaction.transportRemaining}
                     placeholder={`Max: PKR ${parseFloat(selectedTransaction.transportRemaining).toLocaleString()}`}
@@ -1339,20 +1420,20 @@ export default function Ograi() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Payment Method</label>
+                  <label className="form-label">{t('paymentMethod')}</label>
                   <select
                     className="form-select"
                     value={paymentData.paymentMethod}
                     onChange={(e) => setPaymentData({...paymentData, paymentMethod: e.target.value})}
                   >
-                    <option value="cash">Cash</option>
-                    <option value="bank">Bank Transfer</option>
-                    <option value="cheque">Cheque</option>
+                    <option value="cash">{t('cash')}</option>
+                    <option value="bank">{t('bankTransfer')}</option>
+                    <option value="cheque">{t('cheque')}</option>
                   </select>
                 </div>
 
                 <div className="form-group full-width">
-                  <label className="form-label">Notes</label>
+                  <label className="form-label">{t('notes')}</label>
                   <textarea
                     className="form-textarea"
                     value={paymentData.notes}
@@ -1394,7 +1475,7 @@ export default function Ograi() {
 
               <div className="form-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowPaymentForm(false)}>
-                  Cancel
+                  {t('cancel')}
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={loading}>
                   {loading ? 'Processing...' : 'Record Payment'}
@@ -1404,6 +1485,7 @@ export default function Ograi() {
           </div>
         </div>
       )}
+      <ConfirmComponent />
     </div>
   );
 }

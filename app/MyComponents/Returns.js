@@ -1,8 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useNotification, useConfirm } from '../components/NotificationSystem';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export default function Returns() {
+  const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSale, setSelectedSale] = useState(null);
   const [returnItems, setReturnItems] = useState([]);
@@ -10,6 +13,8 @@ export default function Returns() {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [recentReturns, setRecentReturns] = useState([]);
   const [loading, setLoading] = useState(false);
+  const { showSuccess, showError, showWarning, showInfo } = useNotification();
+  const { confirm, ConfirmComponent } = useConfirm();
 
   useEffect(() => {
     fetchReturns();
@@ -23,7 +28,7 @@ export default function Returns() {
         id: ret.id,
         saleId: ret.saleId,
         date: new Date(ret.createdAt).toLocaleDateString(),
-        customer: ret.customer?.name || 'Walk-in Customer',
+        customer: ret.customer?.name || t('walkInCustomer'),
         items: ret.returnItems?.length || 0,
         amount: parseFloat(ret.refundAmount),
         status: ret.status,
@@ -31,12 +36,13 @@ export default function Returns() {
       })));
     } catch (error) {
       console.error('Error fetching returns:', error);
+      showError(t('failedToLoadRecentReturns'));
     }
   };
 
   const handleSearch = async () => {
     if (!searchTerm) {
-      alert('Please enter a sale ID or phone number');
+      showWarning(t('pleaseEnterSaleIdOrPhone'));
       return;
     }
 
@@ -50,7 +56,7 @@ export default function Returns() {
         setSelectedSale({
           id: sale.id,
           date: new Date(sale.createdAt).toLocaleDateString(),
-          customer: sale.customer || { name: 'Walk-in Customer' },
+          customer: sale.customer || { name: t('walkInCustomer') },
           items: sale.saleItems.map(item => ({
             id: item.id,
             productId: item.productId,
@@ -71,11 +77,11 @@ export default function Returns() {
           returnQty: 0 
         })));
       } else {
-        alert('Sale not found! Please check the sale ID or phone number.');
+        showError(t('saleNotFoundCheckIdOrPhone'));
       }
     } catch (error) {
       console.error('Error searching sale:', error);
-      alert('Error searching sale');
+      showError(t('errorSearchingSale'));
     } finally {
       setLoading(false);
     }
@@ -107,14 +113,23 @@ export default function Returns() {
     const selectedItems = returnItems.filter(item => item.selected && item.returnQty > 0);
     
     if (selectedItems.length === 0) {
-      alert('Please select items to return');
+      showWarning(t('pleaseSelectItemsToReturn'));
       return;
     }
 
     if (!returnReason) {
-      alert('Please provide a reason for return');
+      showWarning(t('pleaseProvideReturnReason'));
       return;
     }
+
+    const confirmed = await confirm({
+      title: t('processReturn'),
+      message: `${t('confirmProcessReturn')} ${t('refundAmount')}: Rs. ${calculateReturnAmount().toFixed(2)}`,
+      confirmText: t('processReturn'),
+      cancelText: t('cancel')
+    });
+
+    if (!confirmed) return;
 
     setLoading(true);
     try {
@@ -127,7 +142,7 @@ export default function Returns() {
           quantity: item.returnQty,
           unitPrice: item.price
         })),
-        processedBy: 'Staff'
+        processedBy: t('staff')
       };
 
       const response = await fetch('/api/returns', {
@@ -137,6 +152,7 @@ export default function Returns() {
       });
 
       if (response.ok) {
+        showSuccess(t('returnProcessedSuccessfully'));
         setShowConfirmation(true);
         await fetchReturns();
         
@@ -149,11 +165,11 @@ export default function Returns() {
           setShowConfirmation(false);
         }, 3000);
       } else {
-        alert('Failed to process return');
+        showError(t('failedToProcessReturn'));
       }
     } catch (error) {
       console.error('Error processing return:', error);
-      alert('Error processing return');
+      showError(t('errorProcessingReturn'));
     } finally {
       setLoading(false);
     }
@@ -163,7 +179,7 @@ export default function Returns() {
     <div className="returns">
       <style jsx>{`
         .returns {
-          background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
           min-height: 100vh;
         }
 
@@ -189,6 +205,7 @@ export default function Returns() {
 
         .main-content {
           display: flex;
+          margin-left: 0;
           gap: 25px;
         }
 
@@ -236,7 +253,7 @@ export default function Returns() {
         }
 
         .search-btn {
-          background: linear-gradient(135deg, #fbbf24, #f59e0b);
+          background: linear-gradient(135deg, #667eea, #764ba2);
           color: white;
           border: none;
           padding: 12px 25px;
@@ -423,7 +440,7 @@ export default function Returns() {
 
         .process-btn {
           width: 100%;
-          background: linear-gradient(135deg, #dc2626, #b91c1c);
+          background: linear-gradient(135deg, #667eea, #764ba2);
           color: white;
           border: none;
           padding: 15px;
@@ -558,7 +575,7 @@ export default function Returns() {
         }
 
         .returns-info-section {
-          background: linear-gradient(135deg, #10b981, #059669);
+          background: linear-gradient(135deg, #667eea, #764ba2);
           border-radius: 20px;
           padding: 25px;
           box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
@@ -598,8 +615,8 @@ export default function Returns() {
 
       <div className="returns-container">
         <div className="page-header">
-          <h1 className="page-title" style={{ fontSize: '36px', fontWeight: 'bold', color: 'white', marginBottom: '10px' }}>Returns & Refunds</h1>
-          <p className="page-subtitle" style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '18px' }}>Process product returns and manage refunds</p>
+          <h1 className="page-title" style={{ fontSize: '36px', fontWeight: 'bold', color: 'white', marginBottom: '10px' }}>{t('returnsRefunds')}</h1>
+          <p className="page-subtitle" style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '18px' }}>{t('processReturnsManageRefunds')}</p>
         </div>
         
         <div className="main-content">
@@ -609,16 +626,16 @@ export default function Returns() {
             <div className="search-section">
               <div className="sale-details">
                 <div className="sale-header">
-                  <span className="sale-id">Sale #{selectedSale.id}</span>
+                  <span className="sale-id">{t('sale')} #{selectedSale.id}</span>
                   <span className="sale-date">{selectedSale.date}</span>
                 </div>
                 <div className="customer-info">
-                  <strong>Customer:</strong> {selectedSale.customer.name}<br />
-                  <strong>Phone:</strong> {selectedSale.customer.phone}
+                  <strong>{t('customer')}:</strong> {selectedSale.customer.name}<br />
+                  <strong>{t('phone')}:</strong> {selectedSale.customer.phone}
                 </div>
               </div>
 
-              <div className="section-title">Select Items to Return</div>
+              <div className="section-title">{t('selectItemsToReturn')}</div>
               <div className="items-list">
                 {returnItems.map(item => (
                   <div 
@@ -659,7 +676,7 @@ export default function Returns() {
               </div>
 
               <div className="reason-section">
-                <div className="section-title">Reason for Return</div>
+                <div className="section-title">{t('reasonForReturn')}</div>
                 <textarea
                   className="reason-textarea"
                   placeholder="Please provide a reason for the return..."
@@ -696,7 +713,7 @@ export default function Returns() {
               <div className="empty-state">
                 <div className="empty-icon">🔍</div>
                 <div className="empty-text">
-                  Search for a sale to process return
+                  {t('searchSaleToProcessReturn')}
                 </div>
               </div>
             </div>
@@ -706,60 +723,60 @@ export default function Returns() {
         <div className="right-section">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div className="search-section">
-              <h2 className="section-title">Find Sale</h2>
+              <h2 className="section-title">{t('findSale')}</h2>
               <div className="search-form">
                 <input
                   type="text"
                   className="search-input"
-                  placeholder="Enter Sale ID or Customer Phone"
+                  placeholder={t('enterSaleIdOrPhone')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
                 <button className="search-btn" onClick={handleSearch}>
-                  Search
+                  {t('search')}
                 </button>
               </div>
               <div style={{ textAlign: 'center', padding: '20px 0', color: '#6b7280', fontSize: '14px' }}>
                 <div style={{ fontSize: '30px', marginBottom: '10px' }}>🔍</div>
-                Search for a sale to process return
+                {t('searchSaleToProcessReturn')}
               </div>
             </div>
 
             <div className="recent-returns">
-              <h2 className="section-title">Recent Returns</h2>
+              <h2 className="section-title">{t('recentReturns')}</h2>
               <div className="returns-list">
                 {recentReturns.length > 0 ? (
                   recentReturns.map(returnItem => (
                     <div key={returnItem.id} className="return-item">
                       <div className="return-header">
-                        <span className="return-id">Return #{returnItem.id}</span>
+                        <span className="return-id">{t('return')} #{returnItem.id}</span>
                         <span className={`return-status status-${returnItem.status.toLowerCase()}`}>
                           {returnItem.status}
                         </span>
                       </div>
                       <div className="return-details">
-                        <strong>Date:</strong> {returnItem.date}<br />
-                        <strong>Customer:</strong> {returnItem.customer}<br />
-                        <strong>Items:</strong> {returnItem.items}<br />
-                        <strong>Reason:</strong> {returnItem.reason}
+                        <strong>{t('date')}:</strong> {returnItem.date}<br />
+                        <strong>{t('customer')}:</strong> {returnItem.customer}<br />
+                        <strong>{t('items')}:</strong> {returnItem.items}<br />
+                        <strong>{t('reason')}:</strong> {returnItem.reason}
                       </div>
                       <div className="return-amount">
-                        Refund: PKR {returnItem.amount.toLocaleString()}
+                        {t('refund')}: PKR {returnItem.amount.toLocaleString()}
                       </div>
                     </div>
                   ))
                 ) : (
                   <div style={{ textAlign: 'center', padding: '30px', color: '#6b7280' }}>
                     <div style={{ fontSize: '30px', marginBottom: '10px' }}>📦</div>
-                    No recent returns
+                    {t('noRecentReturns')}
                   </div>
                 )}
               </div>
             </div>
 
             <div className="returns-info-section">
-              <h3 className="returns-info-title">Returns & Refunds</h3>
-              <p className="returns-info-description">Process product returns and manage refunds</p>
+              <h3 className="returns-info-title">{t('returnsRefunds')}</h3>
+              <p className="returns-info-description">{t('processReturnsManageRefunds')}</p>
             </div>
           </div>
         </div>
@@ -769,12 +786,13 @@ export default function Returns() {
       {showConfirmation && (
         <div className="confirmation-modal">
           <div className="confirmation-icon">✅</div>
-          <div className="confirmation-title">Return Processed Successfully!</div>
+          <div className="confirmation-title">{t('returnProcessedSuccessfully')}</div>
           <div className="confirmation-message">
-            The return has been processed and inventory has been updated.
+            {t('returnProcessedInventoryUpdated')}
           </div>
         </div>
       )}
+      <ConfirmComponent />
     </div>
   );
 }

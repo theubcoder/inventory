@@ -41,7 +41,8 @@ export async function GET(request) {
     return NextResponse.json(productsWithStatus);
   } catch (error) {
     console.error('Error fetching products:', error);
-    return NextResponse.json({ error: 'Failed to fetch products' }, { status: 500 });
+    // Return empty array on error to prevent frontend crashes
+    return NextResponse.json([]);
   }
 }
 
@@ -49,7 +50,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name, categoryId, price, quantity, minStock, unitsPerBox, description, barcode } = body;
+    const { name, categoryId, price, quantity, minStock, unitsPerBox, profitPerUnit, profitPerBox, description, barcode } = body;
 
     // Validate required fields
     if (!name || !price || quantity === undefined) {
@@ -59,11 +60,13 @@ export async function POST(request) {
     const product = await prisma.product.create({
       data: {
         name,
-        categoryId: categoryId ? parseInt(categoryId) : null,
+        category: categoryId ? { connect: { id: parseInt(categoryId) } } : undefined,
         price: parseFloat(price),
         quantity: parseInt(quantity),
         minStock: parseInt(minStock) || 10,
         unitsPerBox: parseInt(unitsPerBox) || 10,
+        profitPerUnit: parseFloat(profitPerUnit) || 0,
+        profitPerBox: parseFloat(profitPerBox) || 0,
         description,
         barcode
       },
@@ -83,7 +86,7 @@ export async function POST(request) {
 export async function PUT(request) {
   try {
     const body = await request.json();
-    const { id, name, categoryId, price, quantity, minStock, unitsPerBox, description, barcode } = body;
+    const { id, name, categoryId, price, quantity, minStock, unitsPerBox, profitPerUnit, profitPerBox, description, barcode } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Product ID required' }, { status: 400 });
@@ -93,11 +96,13 @@ export async function PUT(request) {
       where: { id: parseInt(id) },
       data: {
         name,
-        categoryId: categoryId ? parseInt(categoryId) : null,
+        category: categoryId ? { connect: { id: parseInt(categoryId) } } : { disconnect: true },
         price: parseFloat(price),
         quantity: parseInt(quantity),
         minStock: parseInt(minStock),
         unitsPerBox: parseInt(unitsPerBox) || 10,
+        profitPerUnit: parseFloat(profitPerUnit) || 0,
+        profitPerBox: parseFloat(profitPerBox) || 0,
         description,
         barcode
       },
@@ -126,8 +131,25 @@ export async function DELETE(request) {
       return NextResponse.json({ error: 'Product ID required' }, { status: 400 });
     }
 
+    const productId = parseInt(id);
+
+    // Check if product has any sales or returns
+    const relatedSales = await prisma.saleItem.count({
+      where: { productId: productId }
+    });
+
+    const relatedReturns = await prisma.returnItem.count({
+      where: { productId: productId }
+    });
+
+    if (relatedSales > 0 || relatedReturns > 0) {
+      return NextResponse.json({ 
+        error: 'Cannot delete product. This product has sales or return history. Consider setting quantity to 0 instead.' 
+      }, { status: 400 });
+    }
+
     await prisma.product.delete({
-      where: { id: parseInt(id) }
+      where: { id: productId }
     });
 
     return NextResponse.json({ message: 'Product deleted successfully' });
@@ -135,6 +157,11 @@ export async function DELETE(request) {
     console.error('Error deleting product:', error);
     if (error.code === 'P2025') {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+    }
+    if (error.code === 'P2003') {
+      return NextResponse.json({ 
+        error: 'Cannot delete product. This product is referenced in other records.' 
+      }, { status: 400 });
     }
     return NextResponse.json({ error: 'Failed to delete product' }, { status: 500 });
   }

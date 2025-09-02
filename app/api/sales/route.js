@@ -48,12 +48,37 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { customer, items, paymentMethod, amountPaid, dueDate } = body;
+    const { customer, items, paymentMethod, amountPaid, profitDiscount, dueDate } = body;
 
     // Calculate totals
     const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const taxAmount = subtotal * 0.18; // 18% GST
-    const totalAmount = subtotal + taxAmount;
+    const taxAmount = 0; // No tax
+    const totalAmount = subtotal; // Total is just subtotal without tax
+    
+    // Calculate profit
+    let totalProfit = 0;
+    for (const item of items) {
+      const profitPerUnit = parseFloat(item.profitPerUnit || 0);
+      const profitPerBox = parseFloat(item.profitPerBox || 0);
+      const unitsPerBox = 10; // Default units per box, you might want to fetch this from product
+      const quantity = item.quantity;
+      
+      let itemProfit = 0;
+      if (profitPerBox > 0) {
+        // If profit per box is set, use box calculation
+        const boxes = Math.floor(quantity / unitsPerBox);
+        const remainingUnits = quantity % unitsPerBox;
+        itemProfit = (boxes * profitPerBox) + (remainingUnits * profitPerUnit);
+      } else {
+        // If no box profit is set, calculate all as individual units
+        itemProfit = quantity * profitPerUnit;
+      }
+      
+      totalProfit += itemProfit;
+    }
+    
+    // Apply profit discount
+    const finalProfit = Math.max(0, totalProfit - (parseFloat(profitDiscount) || 0));
     
     // Calculate payment details
     const paidAmount = amountPaid !== undefined ? parseFloat(amountPaid) : totalAmount;
@@ -94,6 +119,8 @@ export async function POST(request) {
           customerId,
           totalAmount,
           taxAmount,
+          profitDiscount: parseFloat(profitDiscount) || 0,
+          totalProfit: finalProfit,
           amountPaid: paidAmount,
           remainingAmount,
           paymentStatus,
@@ -119,6 +146,28 @@ export async function POST(request) {
         }
       });
 
+      // Update product quantities FIRST (this should always happen for any sale)
+      for (const item of items) {
+        // First check current quantity
+        const product = await tx.product.findUnique({
+          where: { id: item.id }
+        });
+        
+        if (!product) {
+          throw new Error(`Product with id ${item.id} not found`);
+        }
+        
+        // Calculate new quantity, ensuring it doesn't go below 0
+        const newQuantity = Math.max(0, product.quantity - item.quantity);
+        
+        await tx.product.update({
+          where: { id: item.id },
+          data: {
+            quantity: newQuantity
+          }
+        });
+      }
+
       // Create initial payment record if amount was paid
       if (paidAmount > 0) {
         await tx.paymentHistory.create({
@@ -141,18 +190,6 @@ export async function POST(request) {
               }
             },
             paymentHistory: true
-          }
-        });
-      }
-
-      // Update product quantities
-      for (const item of items) {
-        await tx.product.update({
-          where: { id: item.id },
-          data: {
-            quantity: {
-              decrement: item.quantity
-            }
           }
         });
       }

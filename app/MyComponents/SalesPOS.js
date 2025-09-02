@@ -1,8 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useNotification } from '../components/NotificationSystem';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export default function SalesPOS() {
+  const { t } = useLanguage();
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -15,6 +18,26 @@ export default function SalesPOS() {
   const [showReceipt, setShowReceipt] = useState(false);
   const [lastSale, setLastSale] = useState(null);
   const [loading, setLoading] = useState(false);
+  const { showSuccess, showError, showWarning, showInfo } = useNotification();
+
+  // Helper function to translate category names
+  const translateCategory = (categoryName) => {
+    if (!categoryName) return '';
+    const categoryKey = categoryName.toLowerCase();
+    // Check if we have a translation for this category
+    const categories = ['electronics', 'clothing', 'food', 'books', 'sports'];
+    if (categories.includes(categoryKey)) {
+      return t(categoryKey);
+    }
+    return categoryName; // Return original if no translation available
+  };
+
+  // Helper function to translate payment method
+  const translatePaymentMethod = (method) => {
+    if (!method) return '';
+    const methodKey = method.toLowerCase();
+    return t(methodKey) || method.toUpperCase();
+  };
 
   useEffect(() => {
     fetchProducts();
@@ -32,7 +55,8 @@ export default function SalesPOS() {
         setProducts(data.map(product => ({
           ...product,
           stock: product.quantity,
-          price: parseFloat(product.price)
+          price: parseFloat(product.price),
+          profitPerUnit: parseFloat(product.profitPerUnit || 0)
         })));
       } else {
         console.error('Invalid product data received:', data);
@@ -45,6 +69,12 @@ export default function SalesPOS() {
   };
 
   const addToCart = (product) => {
+    // Check if product is out of stock
+    if (product.stock === 0) {
+      showError(t('outOfStockProduct'));
+      return;
+    }
+    
     const existingItem = cart.find(item => item.id === product.id);
     if (existingItem) {
       if (existingItem.quantity < product.stock) {
@@ -54,7 +84,7 @@ export default function SalesPOS() {
             : item
         ));
       } else {
-        alert('Not enough stock available!');
+        showWarning(t('notEnoughStock'));
       }
     } else {
       setCart([...cart, { ...product, quantity: 1 }]);
@@ -70,7 +100,7 @@ export default function SalesPOS() {
         item.id === id ? { ...item, quantity } : item
       ));
     } else {
-      alert('Not enough stock available!');
+      showWarning('Not enough stock available!');
     }
   };
 
@@ -82,17 +112,21 @@ export default function SalesPOS() {
     return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
   };
 
-  const calculateTax = () => {
-    return calculateTotal() * 0.18; // 18% GST
+  const calculateProfit = () => {
+    return cart.reduce((totalProfit, item) => {
+      // Use profitPerUnit if available, otherwise default to 0
+      const profitPerUnit = parseFloat(item.profitPerUnit || 0);
+      return totalProfit + (profitPerUnit * item.quantity);
+    }, 0);
   };
 
   const calculateGrandTotal = () => {
-    return calculateTotal() + calculateTax();
+    return calculateTotal(); // No tax added, just the total
   };
 
   const handleCheckout = () => {
     if (cart.length === 0) {
-      alert('Cart is empty!');
+      showWarning(t('cartEmpty'));
       return;
     }
     setShowCheckout(true);
@@ -130,7 +164,7 @@ export default function SalesPOS() {
           customer: sale.customer || customerInfo,
           date: new Date(sale.createdAt).toLocaleString(),
           subtotal: calculateTotal(),
-          tax: calculateTax(),
+          profit: calculateProfit(),
           total: calculateGrandTotal(),
           paymentMethod: sale.paymentMethod || paymentMethod
         });
@@ -146,12 +180,13 @@ export default function SalesPOS() {
         
         // Refresh products to update stock
         fetchProducts();
+        showSuccess(t('saleProcessedSuccess'));
       } else {
-        alert('Failed to process sale');
+        showError(t('failedToProcessSale'));
       }
     } catch (error) {
       console.error('Error processing sale:', error);
-      alert('Error processing sale');
+      showError(t('errorProcessingSale'));
     } finally {
       setLoading(false);
     }
@@ -228,11 +263,37 @@ export default function SalesPOS() {
           box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
           cursor: pointer;
           transition: all 0.3s ease;
+          position: relative;
         }
 
         .product-card:hover {
           transform: translateY(-3px);
           box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .product-card.out-of-stock {
+          opacity: 0.6;
+          cursor: not-allowed;
+          background: #f3f4f6;
+        }
+
+        .product-card.out-of-stock:hover {
+          transform: none;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .out-of-stock-badge {
+          position: absolute;
+          top: 10px;
+          right: 10px;
+          background: #ef4444;
+          color: white;
+          padding: 5px 10px;
+          border-radius: 5px;
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+          z-index: 1;
         }
 
         .product-image {
@@ -681,11 +742,11 @@ export default function SalesPOS() {
 
       <div className="left-panel">
         <div className="search-section">
-          <h2 className="search-title">Search Products</h2>
+          <h2 className="search-title">{t('searchProducts')}</h2>
           <input
             type="text"
             className="search-input"
-            placeholder="Search by name or scan barcode..."
+            placeholder={t('searchProductsBarcode')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -693,13 +754,19 @@ export default function SalesPOS() {
 
         <div className="products-grid">
           {filteredProducts.map(product => (
-            <div key={product.id} className="product-card" onClick={() => addToCart(product)}>
+            <div 
+              key={product.id} 
+              className={`product-card ${product.stock === 0 ? 'out-of-stock' : ''}`} 
+              onClick={() => addToCart(product)}>
+              {product.stock === 0 && (
+                <div className="out-of-stock-badge">{t('outOfStock')}</div>
+              )}
               <div className="product-image">
-                {product.category?.name === 'Electronics' && '💻'}
-                {product.category?.name === 'Clothing' && '👕'}
-                {product.category?.name === 'Food' && '🍚'}
-                {product.category?.name === 'Books' && '📚'}
-                {product.category?.name === 'Sports' && '⚽'}
+                {product.category?.name?.toLowerCase() === 'electronics' && '💻'}
+                {product.category?.name?.toLowerCase() === 'clothing' && '👕'}
+                {product.category?.name?.toLowerCase() === 'food' && '🍚'}
+                {product.category?.name?.toLowerCase() === 'books' && '📚'}
+                {product.category?.name?.toLowerCase() === 'sports' && '⚽'}
                 {!product.category && '📦'}
               </div>
               <div className="product-info">
@@ -709,9 +776,9 @@ export default function SalesPOS() {
                   product.stock === 0 ? 'out-of-stock' : 
                   product.stock < (product.minStock || 10) ? 'low-stock' : ''
                 }`}>
-                  Stock: {Math.floor((product.stock || 0) / (product.unitsPerBox || 10))} boxes ({product.stock || 0} units)
+                  {t('stock')}: {Math.floor((product.stock || 0) / (product.unitsPerBox || 10))} {t('boxes')} ({product.stock || 0} {t('units')})
                   <span style={{ fontSize: '11px', color: '#9ca3af', marginLeft: '5px' }}>
-                    ({product.unitsPerBox || 10} units/box)
+                    ({product.unitsPerBox || 10} {t('units')}/{t('boxes').toLowerCase()})
                   </span>
                 </div>
               </div>
@@ -722,15 +789,15 @@ export default function SalesPOS() {
 
       <div className="right-panel">
         <div className="cart-header">
-          <h2 className="cart-title">Shopping Cart</h2>
-          <div className="cart-count">{cart.length} items</div>
+          <h2 className="cart-title">{t('shoppingCart')}</h2>
+          <div className="cart-count">{cart.length} {t('items')}</div>
         </div>
 
         <div className="cart-items">
           {cart.length === 0 ? (
             <div className="empty-cart">
               <div className="empty-cart-icon">🛒</div>
-              <div className="empty-cart-text">Your cart is empty</div>
+              <div className="empty-cart-text">{t('emptyCart')}</div>
             </div>
           ) : (
             cart.map(item => (
@@ -757,7 +824,7 @@ export default function SalesPOS() {
                     className="remove-btn"
                     onClick={() => removeFromCart(item.id)}
                   >
-                    Remove
+                    {t('remove')}
                   </button>
                 </div>
               </div>
@@ -768,15 +835,15 @@ export default function SalesPOS() {
         <div className="cart-footer">
           <div className="total-section">
             <div className="total-row">
-              <span className="total-label">Subtotal:</span>
+              <span className="total-label">{t('subtotal')}:</span>
               <span className="total-value">PKR {calculateTotal().toLocaleString()}</span>
             </div>
             <div className="total-row">
-              <span className="total-label">Tax (18%):</span>
-              <span className="total-value">PKR {calculateTax().toFixed(2)}</span>
+              <span className="total-label">{t('profit')}:</span>
+              <span className="total-value">PKR {calculateProfit().toFixed(2)}</span>
             </div>
             <div className="total-row grand-total">
-              <span className="total-label">Grand Total:</span>
+              <span className="total-label">{t('grandTotal')}:</span>
               <span className="total-value">PKR {calculateGrandTotal().toFixed(2)}</span>
             </div>
           </div>
@@ -785,7 +852,7 @@ export default function SalesPOS() {
             onClick={handleCheckout}
             disabled={cart.length === 0}
           >
-            Proceed to Checkout
+            {t('proceedToCheckout')}
           </button>
         </div>
       </div>
@@ -794,45 +861,45 @@ export default function SalesPOS() {
         <div className="modal-overlay" onClick={() => setShowCheckout(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 className="modal-title">Checkout</h2>
+              <h2 className="modal-title">{t('checkout')}</h2>
               <button className="close-btn" onClick={() => setShowCheckout(false)}>✕</button>
             </div>
 
             <div className="form-group">
-              <label className="form-label">Customer Name</label>
+              <label className="form-label">{t('customerName')}</label>
               <input
                 type="text"
                 className="form-input"
                 value={customerInfo.name}
                 onChange={(e) => setCustomerInfo({...customerInfo, name: e.target.value})}
-                placeholder="Enter customer name"
+                placeholder={t('enterCustomerName')}
               />
             </div>
 
             <div className="form-group">
-              <label className="form-label">Phone Number</label>
+              <label className="form-label">{t('phoneNumber')}</label>
               <input
                 type="tel"
                 className="form-input"
                 value={customerInfo.phone}
                 onChange={(e) => setCustomerInfo({...customerInfo, phone: e.target.value})}
-                placeholder="Enter phone number"
+                placeholder={t('enterPhoneNumber')}
               />
             </div>
 
             <div className="form-group">
-              <label className="form-label">Email (Optional)</label>
+              <label className="form-label">{t('emailOptional')}</label>
               <input
                 type="email"
                 className="form-input"
                 value={customerInfo.email}
                 onChange={(e) => setCustomerInfo({...customerInfo, email: e.target.value})}
-                placeholder="Enter email address"
+                placeholder={t('enterEmailAddress')}
               />
             </div>
 
             <div className="form-group">
-              <label className="form-label">Payment Type</label>
+              <label className="form-label">{t('paymentType')}</label>
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                 <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
                   <input
@@ -842,7 +909,7 @@ export default function SalesPOS() {
                     onChange={(e) => setPaymentType(e.target.value)}
                     style={{ marginRight: '8px' }}
                   />
-                  Full Payment
+                  {t('fullPayment')}
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
                   <input
@@ -852,7 +919,7 @@ export default function SalesPOS() {
                     onChange={(e) => setPaymentType(e.target.value)}
                     style={{ marginRight: '8px' }}
                   />
-                  Partial Payment (Loan/Credit)
+                  {t('partialPayment')}
                 </label>
               </div>
             </div>
@@ -860,26 +927,26 @@ export default function SalesPOS() {
             {paymentType === 'partial' && (
               <>
                 <div className="form-group">
-                  <label className="form-label">Amount Paid Now</label>
+                  <label className="form-label">{t('amountPaidNow')}</label>
                   <input
                     type="number"
                     className="form-input"
                     value={amountPaid}
                     onChange={(e) => setAmountPaid(e.target.value)}
-                    placeholder="Enter amount customer is paying now"
+                    placeholder={t('enterAmountPayingNow')}
                     min="0"
                     max={calculateGrandTotal().toFixed(2)}
                     step="0.01"
                   />
                   {amountPaid && (
                     <div style={{ marginTop: '8px', fontSize: '14px', color: '#6b7280' }}>
-                      Remaining: PKR {(calculateGrandTotal() - parseFloat(amountPaid || 0)).toFixed(2)}
+                      {t('remaining')}: PKR {(calculateGrandTotal() - parseFloat(amountPaid || 0)).toFixed(2)}
                     </div>
                   )}
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Due Date (Optional)</label>
+                  <label className="form-label">{t('dueDate')}</label>
                   <input
                     type="date"
                     className="form-input"
@@ -892,42 +959,42 @@ export default function SalesPOS() {
             )}
 
             <div className="form-group">
-              <label className="form-label">Payment Method</label>
+              <label className="form-label">{t('paymentMethod')}</label>
               <div className="payment-methods">
                 <div 
                   className={`payment-option ${paymentMethod === 'cash' ? 'selected' : ''}`}
                   onClick={() => setPaymentMethod('cash')}
                 >
-                  💵 Cash
+                  💵 {t('cash')}
                 </div>
                 <div 
                   className={`payment-option ${paymentMethod === 'card' ? 'selected' : ''}`}
                   onClick={() => setPaymentMethod('card')}
                 >
-                  💳 Card
+                  💳 {t('card')}
                 </div>
                 <div 
                   className={`payment-option ${paymentMethod === 'upi' ? 'selected' : ''}`}
                   onClick={() => setPaymentMethod('upi')}
                 >
-                  📱 UPI
+                  📱 {t('upi')}
                 </div>
               </div>
             </div>
 
             <div className="total-section">
               <div className="total-row grand-total">
-                <span className="total-label">Total Amount:</span>
+                <span className="total-label">{t('totalAmount')}:</span>
                 <span className="total-value">PKR {calculateGrandTotal().toFixed(2)}</span>
               </div>
               {paymentType === 'partial' && amountPaid && (
                 <>
                   <div className="total-row">
-                    <span className="total-label">Amount Paying Now:</span>
+                    <span className="total-label">{t('amountPayingNow')}:</span>
                     <span className="total-value">PKR {parseFloat(amountPaid || 0).toFixed(2)}</span>
                   </div>
                   <div className="total-row" style={{ color: '#dc2626' }}>
-                    <span className="total-label">Remaining Amount:</span>
+                    <span className="total-label">{t('remainingAmount')}:</span>
                     <span className="total-value">PKR {(calculateGrandTotal() - parseFloat(amountPaid || 0)).toFixed(2)}</span>
                   </div>
                 </>
@@ -936,10 +1003,10 @@ export default function SalesPOS() {
 
             <div className="form-actions">
               <button className="process-btn" onClick={processSale}>
-                Process Sale
+                {t('processSale')}
               </button>
               <button className="cancel-btn" onClick={() => setShowCheckout(false)}>
-                Cancel
+                {t('cancel')}
               </button>
             </div>
           </div>
@@ -950,24 +1017,24 @@ export default function SalesPOS() {
         <div className="modal-overlay" onClick={() => setShowReceipt(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 className="modal-title">Receipt</h2>
+              <h2 className="modal-title">{t('receipt')}</h2>
               <button className="close-btn" onClick={() => setShowReceipt(false)}>✕</button>
             </div>
 
             <div className="receipt">
               <div className="receipt-header">
-                <div className="receipt-title">✅ Payment Successful!</div>
+                <div className="receipt-title">✅ {t('paymentSuccessful')}</div>
                 <div className="receipt-info">
-                  Sale ID: #{lastSale.id}<br />
-                  Date: {lastSale.date}
+                  {t('saleId')}: #{lastSale.id}<br />
+                  {t('date')}: {lastSale.date}
                 </div>
               </div>
 
               {lastSale.customer && lastSale.customer.name && (
                 <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-                  <strong>Customer:</strong> {lastSale.customer.name}<br />
-                  {lastSale.customer.phone && <><strong>Phone:</strong> {lastSale.customer.phone}<br /></>}
-                  {lastSale.customer.email && <><strong>Email:</strong> {lastSale.customer.email}</>}
+                  <strong>{t('customer')}:</strong> {lastSale.customer.name}<br />
+                  {lastSale.customer.phone && <><strong>{t('phone')}:</strong> {lastSale.customer.phone}<br /></>}
+                  {lastSale.customer.email && <><strong>{t('email')}:</strong> {lastSale.customer.email}</>}
                 </div>
               )}
 
@@ -982,24 +1049,24 @@ export default function SalesPOS() {
 
               <div className="receipt-total">
                 <div className="total-row">
-                  <span className="total-label">Subtotal:</span>
+                  <span className="total-label">{t('subtotal')}:</span>
                   <span className="total-value">PKR {lastSale.subtotal.toLocaleString()}</span>
                 </div>
                 <div className="total-row">
-                  <span className="total-label">Tax:</span>
-                  <span className="total-value">PKR {lastSale.tax.toFixed(2)}</span>
+                  <span className="total-label">{t('profit')}:</span>
+                  <span className="total-value">PKR {lastSale.profit.toFixed(2)}</span>
                 </div>
                 <div className="total-row grand-total">
-                  <span className="total-label">Total:</span>
+                  <span className="total-label">{t('total')}:</span>
                   <span className="total-value">PKR {lastSale.total.toFixed(2)}</span>
                 </div>
                 <div style={{ marginTop: '10px', fontSize: '14px', color: '#6b7280' }}>
-                  Payment Method: {lastSale.paymentMethod.toUpperCase()}
+                  {t('paymentMethod')}: {translatePaymentMethod(lastSale.paymentMethod)}
                 </div>
               </div>
 
               <button className="print-btn" onClick={() => window.print()}>
-                🖨️ Print Receipt
+                🖨️ {t('printReceipt')}
               </button>
             </div>
           </div>

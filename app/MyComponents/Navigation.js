@@ -11,8 +11,8 @@ export default function Navigation({ activeTab, setActiveTab }) {
     { id: 'dashboard', label: t('dashboard'), icon: '📊' },
     { id: 'products', label: t('products'), icon: '📦' },
     { id: 'sales', label: t('sales'), icon: '💰' },
-    { id: 'loans', label: 'Loans/Credit', icon: '💳' },
-    { id: 'ograi', label: 'Ograi', icon: '🌾' },
+    { id: 'loans', label: t('loanHistory'), icon: '📜' },
+    { id: 'ograi', label: t('ograi'), icon: '🌾' },
     { id: 'returns', label: t('returns'), icon: '↩️' },
     { id: 'reports', label: t('reports'), icon: '📈' },
   ];
@@ -328,7 +328,7 @@ export default function Navigation({ activeTab, setActiveTab }) {
       <div className="nav-header">
         <div className="nav-logo">
           <div className="logo-icon">📦</div>
-          <span className="logo-text">Inventory Pro</span>
+          <span className="logo-text">{t('inventoryPro')}</span>
         </div>
         <button className="toggle-btn" onClick={() => setIsCollapsed(!isCollapsed)}>
           {isCollapsed ? '→' : '←'}
@@ -353,15 +353,15 @@ export default function Navigation({ activeTab, setActiveTab }) {
         <div className="user-info">
           <div className="user-avatar">👤</div>
           <div className="user-details">
-            <div className="user-name">Admin User</div>
-            <div className="user-role">Store Manager</div>
+            <div className="user-name">{t('adminUser')}</div>
+            <div className="user-role">{t('storeManager')}</div>
           </div>
         </div>
         <button className="language-toggle" onClick={toggleLanguage}>
           🌐 <span>{language === 'en' ? 'اردو' : 'English'}</span>
         </button>
         <button className="logout-btn">
-          🚪 <span>Logout</span>
+          🚪 <span>{t('logout')}</span>
         </button>
       </div>
     </div>

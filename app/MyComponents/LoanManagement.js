@@ -1,9 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useLanguage } from '../contexts/LanguageContext';
+import { useNotification } from '../components/NotificationSystem';
 
 export default function LoanManagement() {
-  const [pendingSales, setPendingSales] = useState([]);
+  const { t } = useLanguage();
+  const { showSuccess, showError, showInfo } = useNotification();
+  const [sales, setSales] = useState([]);
   const [selectedSale, setSelectedSale] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -12,31 +16,35 @@ export default function LoanManagement() {
   const [loading, setLoading] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all'); // all, pending, partial
+  const [filterStatus, setFilterStatus] = useState('all'); // all, paid, partial, pending
+  const [dateFilter, setDateFilter] = useState({
+    start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
+    end: new Date().toISOString().split('T')[0]
+  });
+  const [expandedSale, setExpandedSale] = useState(null);
 
   useEffect(() => {
-    fetchPendingSales();
-  }, []);
+    fetchSales();
+  }, [dateFilter, filterStatus]);
 
-  const fetchPendingSales = async () => {
+  const fetchSales = async () => {
     setIsLoadingData(true);
     try {
-      const response = await fetch('/api/payment-history', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'pending' })
-      });
+      let url = `/api/sales?startDate=${dateFilter.start}&endDate=${dateFilter.end}`;
+      const response = await fetch(url);
       const data = await response.json();
-      // Ensure data is an array
-      if (Array.isArray(data)) {
-        setPendingSales(data);
-      } else {
-        console.error('Invalid data format received:', data);
-        setPendingSales([]);
+      
+      // Filter by payment status if needed
+      let filteredData = data;
+      if (filterStatus !== 'all') {
+        filteredData = data.filter(sale => sale.paymentStatus === filterStatus);
       }
+      
+      setSales(filteredData);
     } catch (error) {
-      console.error('Error fetching pending sales:', error);
-      setPendingSales([]);
+      console.error('Error fetching sales:', error);
+      showError(t('errorFetchingSales'));
+      setSales([]);
     } finally {
       setIsLoadingData(false);
     }
@@ -47,86 +55,119 @@ export default function LoanManagement() {
     
     setLoading(true);
     try {
-      const response = await fetch('/api/sales', {
+      const response = await fetch('/api/payment-history', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           saleId: selectedSale.id,
           amountPaid: parseFloat(paymentAmount),
           paymentMethod,
-          notes: paymentNotes
+          notes: paymentNotes || null
         })
       });
 
       if (response.ok) {
-        alert('Payment recorded successfully!');
+        showSuccess(t('paymentRecordedSuccess'));
         setShowPaymentModal(false);
         setSelectedSale(null);
         setPaymentAmount('');
         setPaymentNotes('');
-        setPaymentMethod('cash');
-        fetchPendingSales();
+        await fetchSales();
       } else {
-        alert('Failed to record payment');
+        showError(t('failedToRecordPayment'));
       }
     } catch (error) {
       console.error('Error recording payment:', error);
-      alert('Error recording payment');
+      showError(t('failedToRecordPayment'));
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredSales = (Array.isArray(pendingSales) ? pendingSales : []).filter(sale => {
-    const matchesSearch = 
-      sale.customer?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sale.customer?.phone?.includes(searchTerm) ||
-      sale.id.toString().includes(searchTerm);
+  const toggleSaleDetails = (saleId) => {
+    setExpandedSale(expandedSale === saleId ? null : saleId);
+  };
+
+  const filteredSales = sales.filter(sale => {
+    if (!searchTerm) return true;
     
-    const matchesFilter = 
-      filterStatus === 'all' ||
-      (filterStatus === 'pending' && sale.paymentStatus === 'pending') ||
-      (filterStatus === 'partial' && sale.paymentStatus === 'partial');
-    
-    return matchesSearch && matchesFilter;
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      sale.id.toString().includes(searchLower) ||
+      (sale.customer?.name && sale.customer.name.toLowerCase().includes(searchLower)) ||
+      (sale.customer?.phone && sale.customer.phone.includes(searchLower))
+    );
   });
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
+  const calculateTotals = () => {
+    const totals = filteredSales.reduce((acc, sale) => {
+      acc.totalSales += 1;
+      acc.totalAmount += parseFloat(sale.totalAmount || 0);
+      acc.totalPaid += parseFloat(sale.amountPaid || 0);
+      acc.totalPending += parseFloat(sale.remainingAmount || 0);
+      acc.totalProfit += parseFloat(sale.totalProfit || 0);
+      return acc;
+    }, { totalSales: 0, totalAmount: 0, totalPaid: 0, totalPending: 0, totalProfit: 0 });
+    
+    return totals;
+  };
+
+  const formatDate = (date) => {
+    return new Date(date).toLocaleDateString('en-GB', {
+      day: '2-digit',
       month: 'short',
-      day: 'numeric'
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
+
+  const getPaymentStatusColor = (status) => {
+    switch(status) {
+      case 'paid': return '#10b981';
+      case 'partial': return '#f59e0b';
+      case 'pending': return '#ef4444';
+      default: return '#6b7280';
+    }
+  };
+
+  const totals = calculateTotals();
 
   return (
     <div className="loan-management">
       <style jsx>{`
         .loan-management {
-          padding: 20px;
-          background: #f8f9fa;
+          padding: 30px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
           min-height: 100vh;
         }
 
-        .header {
+        .page-header {
           background: white;
-          border-radius: 15px;
+          border-radius: 20px;
           padding: 25px;
-          margin-bottom: 25px;
-          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+          margin-bottom: 30px;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
         }
 
-        .title {
-          font-size: 28px;
+        .page-title {
+          font-size: 32px;
           font-weight: bold;
           color: #1f2937;
+          margin-bottom: 10px;
+        }
+
+        .page-subtitle {
+          color: #6b7280;
+          font-size: 16px;
           margin-bottom: 20px;
         }
 
-        .controls {
+        .filters {
           display: flex;
           gap: 15px;
           flex-wrap: wrap;
+          margin-bottom: 20px;
         }
 
         .search-input {
@@ -144,32 +185,53 @@ export default function LoanManagement() {
           box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
-        .filter-select {
+        .date-filter {
+          display: flex;
+          gap: 10px;
+          align-items: center;
+        }
+
+        .date-input {
           padding: 12px 15px;
           border: 2px solid #e5e7eb;
           border-radius: 10px;
-          font-size: 15px;
-          background: white;
-          cursor: pointer;
+          font-size: 14px;
         }
 
-        .filter-select:focus {
-          outline: none;
-          border-color: #667eea;
+        .filter-tabs {
+          display: flex;
+          gap: 10px;
+        }
+
+        .filter-tab {
+          padding: 10px 20px;
+          border: none;
+          background: #f3f4f6;
+          border-radius: 10px;
+          font-size: 14px;
+          font-weight: 500;
+          color: #6b7280;
+          cursor: pointer;
+          transition: all 0.3s ease;
+        }
+
+        .filter-tab.active {
+          background: linear-gradient(135deg, #667eea, #764ba2);
+          color: white;
         }
 
         .stats-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
           gap: 20px;
-          margin-bottom: 25px;
+          margin-bottom: 30px;
         }
 
         .stat-card {
           background: white;
           border-radius: 15px;
           padding: 20px;
-          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+          box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
         }
 
         .stat-label {
@@ -179,109 +241,119 @@ export default function LoanManagement() {
         }
 
         .stat-value {
-          font-size: 28px;
+          font-size: 24px;
           font-weight: bold;
           color: #1f2937;
         }
 
+        .stat-change {
+          font-size: 12px;
+          color: #10b981;
+          margin-top: 5px;
+        }
+
         .sales-table {
           background: white;
-          border-radius: 15px;
-          padding: 25px;
-          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-        }
-
-        .table {
-          width: 100%;
-          border-collapse: collapse;
-        }
-
-        .table th {
-          text-align: left;
-          padding: 12px;
-          border-bottom: 2px solid #e5e7eb;
-          font-size: 14px;
-          font-weight: 600;
-          color: #6b7280;
-        }
-
-        .table td {
-          padding: 12px;
-          border-bottom: 1px solid #f3f4f6;
-          font-size: 14px;
-          color: #1f2937;
-        }
-
-        .table tr:hover {
-          background: #f9fafb;
-        }
-
-        .customer-info {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .customer-name {
-          font-weight: 600;
-          color: #1f2937;
-        }
-
-        .customer-phone {
-          font-size: 13px;
-          color: #6b7280;
-        }
-
-        .status-badge {
-          display: inline-block;
-          padding: 4px 10px;
           border-radius: 20px;
-          font-size: 12px;
+          padding: 25px;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .table-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 20px;
+        }
+
+        .table-title {
+          font-size: 20px;
           font-weight: 600;
+          color: #1f2937;
         }
 
-        .status-pending {
-          background: #fee2e2;
-          color: #dc2626;
-        }
-
-        .status-partial {
-          background: #fef3c7;
-          color: #d97706;
-        }
-
-        .status-paid {
-          background: #d1fae5;
-          color: #059669;
-        }
-
-        .amount-info {
+        .sales-list {
           display: flex;
           flex-direction: column;
-          gap: 4px;
+          gap: 15px;
+        }
+
+        .sale-item {
+          background: #f9fafb;
+          border-radius: 12px;
+          padding: 15px;
+          transition: all 0.3s ease;
+          cursor: pointer;
+        }
+
+        .sale-item:hover {
+          background: #f3f4f6;
+          transform: translateX(5px);
+        }
+
+        .sale-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .sale-info {
+          flex: 1;
+        }
+
+        .sale-id {
+          font-size: 16px;
+          font-weight: 600;
+          color: #1f2937;
+          margin-bottom: 5px;
+        }
+
+        .sale-customer {
+          font-size: 14px;
+          color: #6b7280;
+        }
+
+        .sale-meta {
+          display: flex;
+          align-items: center;
+          gap: 15px;
+        }
+
+        .sale-amount {
+          text-align: right;
         }
 
         .amount-total {
+          font-size: 16px;
           font-weight: 600;
           color: #1f2937;
         }
 
         .amount-paid {
           font-size: 13px;
-          color: #059669;
+          color: #10b981;
         }
 
         .amount-remaining {
           font-size: 13px;
-          color: #dc2626;
+          color: #ef4444;
+        }
+
+        .payment-status {
+          padding: 5px 12px;
+          border-radius: 20px;
+          font-size: 12px;
+          font-weight: 500;
+          color: white;
         }
 
         .action-btn {
+          padding: 8px 16px;
+          border: none;
           background: linear-gradient(135deg, #667eea, #764ba2);
           color: white;
-          border: none;
-          padding: 8px 16px;
           border-radius: 8px;
-          font-size: 14px;
+          font-size: 13px;
           font-weight: 500;
           cursor: pointer;
           transition: all 0.3s ease;
@@ -292,24 +364,78 @@ export default function LoanManagement() {
           box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
         }
 
-        .view-btn {
-          background: #f3f4f6;
-          color: #374151;
-          border: none;
-          padding: 8px 16px;
-          border-radius: 8px;
+        .action-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .sale-details {
+          margin-top: 15px;
+          padding-top: 15px;
+          border-top: 1px solid #e5e7eb;
+        }
+
+        .details-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+        }
+
+        .detail-section {
+          margin-bottom: 15px;
+        }
+
+        .detail-title {
           font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          margin-right: 8px;
-          transition: all 0.3s ease;
+          font-weight: 600;
+          color: #4b5563;
+          margin-bottom: 10px;
         }
 
-        .view-btn:hover {
-          background: #e5e7eb;
+        .items-list {
+          font-size: 13px;
+          color: #6b7280;
         }
 
-        .modal-overlay {
+        .item-row {
+          display: flex;
+          justify-content: space-between;
+          padding: 5px 0;
+        }
+
+        .payment-history {
+          margin-top: 10px;
+        }
+
+        .payment-item {
+          background: #f3f4f6;
+          padding: 8px 12px;
+          border-radius: 8px;
+          margin-bottom: 8px;
+          font-size: 13px;
+        }
+
+        .payment-date {
+          color: #6b7280;
+          font-size: 12px;
+        }
+
+        .empty-state {
+          text-align: center;
+          padding: 60px 20px;
+          color: #6b7280;
+        }
+
+        .empty-icon {
+          font-size: 60px;
+          margin-bottom: 15px;
+        }
+
+        .empty-text {
+          font-size: 18px;
+        }
+
+        .modal {
           position: fixed;
           top: 0;
           left: 0;
@@ -322,7 +448,7 @@ export default function LoanManagement() {
           z-index: 1000;
         }
 
-        .modal {
+        .modal-content {
           background: white;
           border-radius: 20px;
           padding: 30px;
@@ -333,9 +459,6 @@ export default function LoanManagement() {
         }
 
         .modal-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
           margin-bottom: 25px;
         }
 
@@ -343,41 +466,12 @@ export default function LoanManagement() {
           font-size: 24px;
           font-weight: bold;
           color: #1f2937;
+          margin-bottom: 5px;
         }
 
-        .close-btn {
-          background: none;
-          border: none;
-          font-size: 24px;
-          color: #6b7280;
-          cursor: pointer;
-        }
-
-        .close-btn:hover {
-          color: #1f2937;
-        }
-
-        .sale-details {
-          background: #f9fafb;
-          border-radius: 10px;
-          padding: 15px;
-          margin-bottom: 20px;
-        }
-
-        .detail-row {
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 10px;
+        .modal-subtitle {
           font-size: 14px;
-        }
-
-        .detail-label {
           color: #6b7280;
-        }
-
-        .detail-value {
-          color: #1f2937;
-          font-weight: 600;
         }
 
         .form-group {
@@ -386,10 +480,10 @@ export default function LoanManagement() {
 
         .form-label {
           display: block;
-          margin-bottom: 8px;
           font-size: 14px;
           font-weight: 500;
           color: #374151;
+          margin-bottom: 8px;
         }
 
         .form-input {
@@ -406,121 +500,84 @@ export default function LoanManagement() {
           box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
-        .payment-methods {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 10px;
-          margin-top: 10px;
-        }
-
-        .payment-option {
-          padding: 12px;
-          border: 2px solid #e5e7eb;
-          border-radius: 10px;
-          text-align: center;
-          cursor: pointer;
-          transition: all 0.3s ease;
-        }
-
-        .payment-option.selected {
-          border-color: #667eea;
-          background: #eff6ff;
-          color: #667eea;
-          font-weight: 600;
-        }
-
-        .textarea {
+        .form-textarea {
           width: 100%;
           padding: 12px 15px;
           border: 2px solid #e5e7eb;
           border-radius: 10px;
           font-size: 15px;
           resize: vertical;
-          min-height: 80px;
+          min-height: 100px;
         }
 
-        .textarea:focus {
-          outline: none;
-          border-color: #667eea;
-          box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        .payment-methods {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 10px;
         }
 
-        .form-actions {
-          display: flex;
-          gap: 15px;
-          margin-top: 25px;
-        }
-
-        .submit-btn {
-          flex: 1;
-          background: linear-gradient(135deg, #10b981, #059669);
-          color: white;
-          border: none;
-          padding: 12px 25px;
-          border-radius: 10px;
-          font-size: 16px;
-          font-weight: 500;
+        .payment-method-btn {
+          padding: 10px;
+          border: 2px solid #e5e7eb;
+          background: white;
+          border-radius: 8px;
           cursor: pointer;
           transition: all 0.3s ease;
-        }
-
-        .submit-btn:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 5px 20px rgba(16, 185, 129, 0.4);
-        }
-
-        .submit-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .cancel-btn {
-          flex: 1;
-          background: #f3f4f6;
-          color: #374151;
-          border: none;
-          padding: 12px 25px;
-          border-radius: 10px;
-          font-size: 16px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.3s ease;
-        }
-
-        .cancel-btn:hover {
-          background: #e5e7eb;
-        }
-
-        .empty-state {
-          text-align: center;
-          padding: 60px 20px;
-          color: #6b7280;
-        }
-
-        .empty-icon {
-          font-size: 60px;
-          margin-bottom: 15px;
-        }
-
-        .empty-text {
-          font-size: 18px;
-          margin-bottom: 10px;
-        }
-
-        .empty-subtext {
           font-size: 14px;
         }
 
+        .payment-method-btn.active {
+          background: linear-gradient(135deg, #667eea, #764ba2);
+          color: white;
+          border-color: transparent;
+        }
+
+        .modal-footer {
+          display: flex;
+          gap: 10px;
+          justify-content: flex-end;
+          margin-top: 25px;
+        }
+
+        .btn {
+          padding: 12px 24px;
+          border: none;
+          border-radius: 10px;
+          font-size: 15px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+          background: linear-gradient(135deg, #667eea, #764ba2);
+          color: white;
+        }
+
+        .btn-secondary {
+          background: #f3f4f6;
+          color: #6b7280;
+        }
+
+        .btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
         @media (max-width: 768px) {
-          .controls {
+          .loan-management {
+            padding: 20px;
+          }
+
+          .filters {
             flex-direction: column;
           }
 
-          .search-input {
-            width: 100%;
+          .stats-grid {
+            grid-template-columns: 1fr;
           }
 
-          .stats-grid {
+          .details-grid {
             grid-template-columns: 1fr;
           }
 
@@ -530,226 +587,285 @@ export default function LoanManagement() {
         }
       `}</style>
 
-      <div className="header">
-        <h1 className="title">Loan & Credit Management</h1>
-        <div className="controls">
+      <div className="page-header">
+        <h1 className="page-title">{t('loanHistory')}</h1>
+        <p className="page-subtitle">{t('loanHistorySubtitle')}</p>
+        
+        <div className="filters">
           <input
             type="text"
             className="search-input"
-            placeholder="Search by customer name, phone, or sale ID..."
+            placeholder={t('searchBySaleIdCustomer')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
-          <select
-            className="filter-select"
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
+          
+          <div className="date-filter">
+            <input
+              type="date"
+              className="date-input"
+              value={dateFilter.start}
+              onChange={(e) => setDateFilter({...dateFilter, start: e.target.value})}
+            />
+            <span>{t('to')}</span>
+            <input
+              type="date"
+              className="date-input"
+              value={dateFilter.end}
+              onChange={(e) => setDateFilter({...dateFilter, end: e.target.value})}
+            />
+          </div>
+        </div>
+
+        <div className="filter-tabs">
+          <button 
+            className={`filter-tab ${filterStatus === 'all' ? 'active' : ''}`}
+            onClick={() => setFilterStatus('all')}
           >
-            <option value="all">All Outstanding</option>
-            <option value="pending">Pending (No Payment)</option>
-            <option value="partial">Partial Payment</option>
-          </select>
+            {t('allSales')} ({sales.length})
+          </button>
+          <button 
+            className={`filter-tab ${filterStatus === 'paid' ? 'active' : ''}`}
+            onClick={() => setFilterStatus('paid')}
+          >
+            {t('fullyPaid')}
+          </button>
+          <button 
+            className={`filter-tab ${filterStatus === 'partial' ? 'active' : ''}`}
+            onClick={() => setFilterStatus('partial')}
+          >
+            {t('partiallyPaid')}
+          </button>
+          <button 
+            className={`filter-tab ${filterStatus === 'pending' ? 'active' : ''}`}
+            onClick={() => setFilterStatus('pending')}
+          >
+            {t('pending')}
+          </button>
         </div>
       </div>
 
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-label">Total Outstanding Sales</div>
-          <div className="stat-value">{isLoadingData ? '...' : (Array.isArray(pendingSales) ? pendingSales.length : 0)}</div>
+          <div className="stat-label">{t('totalSales')}</div>
+          <div className="stat-value">{totals.totalSales}</div>
+          <div className="stat-change">{t('inSelectedPeriod')}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Total Outstanding Amount</div>
-          <div className="stat-value">
-            {isLoadingData ? '...' : `PKR ${(Array.isArray(pendingSales) ? pendingSales : []).reduce((sum, sale) => sum + parseFloat(sale.remainingAmount || 0), 0).toLocaleString()}`}
-          </div>
+          <div className="stat-label">{t('totalAmount')}</div>
+          <div className="stat-value">PKR {totals.totalAmount.toLocaleString()}</div>
+          <div className="stat-change">{t('totalSalesAmount')}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Total Collected</div>
-          <div className="stat-value">
-            {isLoadingData ? '...' : `PKR ${(Array.isArray(pendingSales) ? pendingSales : []).reduce((sum, sale) => sum + parseFloat(sale.amountPaid || 0), 0).toLocaleString()}`}
-          </div>
+          <div className="stat-label">{t('totalPaid')}</div>
+          <div className="stat-value">PKR {totals.totalPaid.toLocaleString()}</div>
+          <div className="stat-change">{t('amountCollected')}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">{t('totalPending')}</div>
+          <div className="stat-value">PKR {totals.totalPending.toLocaleString()}</div>
+          <div className="stat-change">{t('yetToCollect')}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">{t('totalProfit')}</div>
+          <div className="stat-value">PKR {totals.totalProfit.toLocaleString()}</div>
+          <div className="stat-change">{t('fromAllSales')}</div>
         </div>
       </div>
 
       <div className="sales-table">
+        <div className="table-header">
+          <h2 className="table-title">{t('salesAndPaymentHistory')}</h2>
+        </div>
+
         {isLoadingData ? (
           <div className="empty-state">
             <div className="empty-icon">⏳</div>
-            <div className="empty-text">Loading...</div>
-            <div className="empty-subtext">Fetching outstanding payments</div>
+            <div className="empty-text">{t('loadingData')}</div>
           </div>
         ) : filteredSales.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-icon">📊</div>
-            <div className="empty-text">No outstanding payments found</div>
-            <div className="empty-subtext">All sales have been fully paid</div>
+            <div className="empty-icon">💰</div>
+            <div className="empty-text">{t('noSalesFound')}</div>
           </div>
         ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Sale ID</th>
-                <th>Customer</th>
-                <th>Date</th>
-                <th>Status</th>
-                <th>Amount Details</th>
-                <th>Due Date</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredSales.map(sale => (
-                <tr key={sale.id}>
-                  <td>#{sale.id}</td>
-                  <td>
-                    <div className="customer-info">
-                      <span className="customer-name">{sale.customer?.name || 'Walk-in Customer'}</span>
-                      {sale.customer?.phone && (
-                        <span className="customer-phone">{sale.customer.phone}</span>
+          <div className="sales-list">
+            {filteredSales.map(sale => (
+              <div 
+                key={sale.id} 
+                className="sale-item"
+                onClick={() => toggleSaleDetails(sale.id)}
+              >
+                <div className="sale-header">
+                  <div className="sale-info">
+                    <div className="sale-id">
+                      {t('sale')} #{sale.id} - {formatDate(sale.createdAt)}
+                    </div>
+                    <div className="sale-customer">
+                      {sale.customer?.name || t('walkInCustomer')} 
+                      {sale.customer?.phone && ` (${sale.customer.phone})`}
+                    </div>
+                  </div>
+                  <div className="sale-meta">
+                    <div className="sale-amount">
+                      <div className="amount-total">PKR {parseFloat(sale.totalAmount).toLocaleString()}</div>
+                      <div className="amount-paid">{t('paid')}: {parseFloat(sale.amountPaid || 0).toLocaleString()}</div>
+                      {sale.remainingAmount > 0 && (
+                        <div className="amount-remaining">{t('remaining')}: {parseFloat(sale.remainingAmount).toLocaleString()}</div>
                       )}
                     </div>
-                  </td>
-                  <td>{formatDate(sale.createdAt)}</td>
-                  <td>
-                    <span className={`status-badge status-${sale.paymentStatus}`}>
-                      {sale.paymentStatus === 'pending' ? 'No Payment' : 
-                       sale.paymentStatus === 'partial' ? 'Partial Paid' : 'Paid'}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="amount-info">
-                      <span className="amount-total">Total: PKR {parseFloat(sale.totalAmount).toLocaleString()}</span>
-                      <span className="amount-paid">Paid: PKR {parseFloat(sale.amountPaid || 0).toLocaleString()}</span>
-                      <span className="amount-remaining">Remaining: PKR {parseFloat(sale.remainingAmount || 0).toLocaleString()}</span>
+                    <div 
+                      className="payment-status"
+                      style={{ backgroundColor: getPaymentStatusColor(sale.paymentStatus) }}
+                    >
+                      {t(sale.paymentStatus || 'paid')}
                     </div>
-                  </td>
-                  <td>{sale.dueDate ? formatDate(sale.dueDate) : '-'}</td>
-                  <td>
-                    <button
-                      className="view-btn"
-                      onClick={() => {
-                        setSelectedSale(sale);
-                        setShowPaymentModal(true);
-                      }}
-                    >
-                      View
-                    </button>
-                    <button
-                      className="action-btn"
-                      onClick={() => {
-                        setSelectedSale(sale);
-                        setShowPaymentModal(true);
-                      }}
-                    >
-                      Add Payment
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    {sale.paymentStatus !== 'paid' && (
+                      <button 
+                        className="action-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedSale(sale);
+                          setPaymentAmount(sale.remainingAmount.toString());
+                          setShowPaymentModal(true);
+                        }}
+                      >
+                        {t('addPayment')}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {expandedSale === sale.id && (
+                  <div className="sale-details">
+                    <div className="details-grid">
+                      <div className="detail-section">
+                        <div className="detail-title">{t('itemsSold')}</div>
+                        <div className="items-list">
+                          {sale.saleItems?.map((item, index) => (
+                            <div key={index} className="item-row">
+                              <span>{item.product?.name || 'Unknown'}</span>
+                              <span>{item.quantity} × PKR {parseFloat(item.unitPrice).toLocaleString()}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div className="detail-section">
+                        <div className="detail-title">{t('paymentHistory')}</div>
+                        <div className="payment-history">
+                          {sale.paymentHistory && sale.paymentHistory.length > 0 ? (
+                            sale.paymentHistory.map((payment, index) => (
+                              <div key={index} className="payment-item">
+                                <div>{t(payment.paymentMethod)} - PKR {parseFloat(payment.amountPaid).toLocaleString()}</div>
+                                <div className="payment-date">{formatDate(payment.createdAt)}</div>
+                                {payment.notes && <div>{payment.notes}</div>}
+                              </div>
+                            ))
+                          ) : (
+                            <div>{t('noPaymentHistory')}</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #e5e7eb' }}>
+                      <div className="item-row">
+                        <span>{t('profit')}:</span>
+                        <span style={{ fontWeight: '600', color: '#10b981' }}>PKR {parseFloat(sale.totalProfit || 0).toLocaleString()}</span>
+                      </div>
+                      {sale.dueDate && (
+                        <div className="item-row">
+                          <span>{t('dueDate')}:</span>
+                          <span>{new Date(sale.dueDate).toLocaleDateString()}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
       {showPaymentModal && selectedSale && (
-        <div className="modal-overlay" onClick={() => setShowPaymentModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal">
+          <div className="modal-content">
             <div className="modal-header">
-              <h2 className="modal-title">Record Payment</h2>
-              <button className="close-btn" onClick={() => setShowPaymentModal(false)}>✕</button>
+              <h2 className="modal-title">{t('recordPayment')}</h2>
+              <p className="modal-subtitle">
+                {t('sale')} #{selectedSale.id} - {selectedSale.customer?.name || t('walkInCustomer')}
+              </p>
             </div>
 
-            <div className="sale-details">
-              <div className="detail-row">
-                <span className="detail-label">Sale ID:</span>
-                <span className="detail-value">#{selectedSale.id}</span>
-              </div>
-              <div className="detail-row">
-                <span className="detail-label">Customer:</span>
-                <span className="detail-value">{selectedSale.customer?.name || 'Walk-in Customer'}</span>
-              </div>
-              <div className="detail-row">
-                <span className="detail-label">Total Amount:</span>
-                <span className="detail-value">PKR {parseFloat(selectedSale.totalAmount).toLocaleString()}</span>
-              </div>
-              <div className="detail-row">
-                <span className="detail-label">Amount Paid:</span>
-                <span className="detail-value">PKR {parseFloat(selectedSale.amountPaid || 0).toLocaleString()}</span>
-              </div>
-              <div className="detail-row">
-                <span className="detail-label">Remaining:</span>
-                <span className="detail-value" style={{ color: '#dc2626' }}>
-                  PKR {parseFloat(selectedSale.remainingAmount || 0).toLocaleString()}
-                </span>
+            <div className="form-group">
+              <label className="form-label">{t('remainingAmount')}</label>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ef4444' }}>
+                PKR {parseFloat(selectedSale.remainingAmount).toLocaleString()}
               </div>
             </div>
 
             <div className="form-group">
-              <label className="form-label">Payment Amount</label>
+              <label className="form-label">{t('paymentAmount')}</label>
               <input
                 type="number"
                 className="form-input"
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
-                placeholder="Enter amount being paid"
-                min="0"
+                placeholder={t('enterAmountBeingPaid')}
                 max={selectedSale.remainingAmount}
-                step="0.01"
               />
               {paymentAmount && (
-                <div style={{ marginTop: '8px', fontSize: '14px', color: '#6b7280' }}>
-                  Remaining after payment: PKR {(parseFloat(selectedSale.remainingAmount) - parseFloat(paymentAmount || 0)).toFixed(2)}
+                <div style={{ marginTop: '8px', fontSize: '13px', color: '#6b7280' }}>
+                  {t('remainingAfterPayment')}: PKR {(selectedSale.remainingAmount - parseFloat(paymentAmount || 0)).toLocaleString()}
                 </div>
               )}
             </div>
 
             <div className="form-group">
-              <label className="form-label">Payment Method</label>
+              <label className="form-label">{t('paymentMethod')}</label>
               <div className="payment-methods">
-                <div 
-                  className={`payment-option ${paymentMethod === 'cash' ? 'selected' : ''}`}
-                  onClick={() => setPaymentMethod('cash')}
-                >
-                  💵 Cash
-                </div>
-                <div 
-                  className={`payment-option ${paymentMethod === 'card' ? 'selected' : ''}`}
-                  onClick={() => setPaymentMethod('card')}
-                >
-                  💳 Card
-                </div>
-                <div 
-                  className={`payment-option ${paymentMethod === 'upi' ? 'selected' : ''}`}
-                  onClick={() => setPaymentMethod('upi')}
-                >
-                  📱 UPI
-                </div>
+                {['cash', 'card', 'bank'].map(method => (
+                  <button
+                    key={method}
+                    className={`payment-method-btn ${paymentMethod === method ? 'active' : ''}`}
+                    onClick={() => setPaymentMethod(method)}
+                  >
+                    {t(method)}
+                  </button>
+                ))}
               </div>
             </div>
 
             <div className="form-group">
-              <label className="form-label">Notes (Optional)</label>
+              <label className="form-label">{t('notesOptional')}</label>
               <textarea
-                className="textarea"
+                className="form-textarea"
                 value={paymentNotes}
                 onChange={(e) => setPaymentNotes(e.target.value)}
-                placeholder="Add any notes about this payment..."
+                placeholder={t('addNotesAboutPayment')}
               />
             </div>
 
-            <div className="form-actions">
+            <div className="modal-footer">
               <button 
-                className="submit-btn" 
-                onClick={handlePayment}
-                disabled={!paymentAmount || loading}
+                className="btn btn-secondary"
+                onClick={() => {
+                  setShowPaymentModal(false);
+                  setSelectedSale(null);
+                  setPaymentAmount('');
+                  setPaymentNotes('');
+                }}
               >
-                {loading ? 'Processing...' : 'Record Payment'}
+                {t('cancel')}
               </button>
               <button 
-                className="cancel-btn" 
-                onClick={() => setShowPaymentModal(false)}
+                className="btn btn-primary"
+                onClick={handlePayment}
+                disabled={!paymentAmount || loading || parseFloat(paymentAmount) <= 0}
               >
-                Cancel
+                {loading ? t('processing') : t('recordPayment')}
               </button>
             </div>
           </div>

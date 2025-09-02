@@ -1,8 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useNotification } from '../components/NotificationSystem';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export default function Reports() {
+  const { showInfo } = useNotification();
+  const { t } = useLanguage();
   const [selectedReport, setSelectedReport] = useState('sales');
   const [dateRange, setDateRange] = useState({ 
     start: new Date().toISOString().split('T')[0], 
@@ -132,7 +136,7 @@ export default function Reports() {
         product: p.name,
         current: p.quantity,
         minimum: p.minStock,
-        status: p.quantity === 0 ? 'Out of Stock' : p.quantity < p.minStock / 2 ? 'Critical' : 'Low'
+        status: p.quantity === 0 ? t('outOfStock') : p.quantity < p.minStock / 2 ? t('critical') : t('low')
       }));
 
     // Calculate stock value by category
@@ -140,7 +144,7 @@ export default function Reports() {
     let totalValue = 0;
 
     products.forEach(product => {
-      const categoryName = product.category?.name || 'Uncategorized';
+      const categoryName = product.category?.name || t('uncategorized');
       if (!categoryStock[categoryName]) {
         categoryStock[categoryName] = { value: 0, items: 0 };
       }
@@ -219,7 +223,7 @@ export default function Reports() {
   };
 
   const handleExport = (format) => {
-    alert(`Exporting report as ${format}...`);
+    showInfo(`${t('exportingReportAs')} ${format}...`);
     // Here you would implement actual export functionality
   };
 
@@ -296,6 +300,7 @@ export default function Reports() {
           border-radius: 10px;
           font-size: 15px;
           font-weight: 500;
+          color: #000000;
           cursor: pointer;
           transition: all 0.3s ease;
         }
@@ -380,7 +385,7 @@ export default function Reports() {
           left: 50%;
           transform: translateX(-50%);
           font-size: 12px;
-          color: #6b7280;
+          color: #000000;
         }
 
         .bar-value {
@@ -454,7 +459,7 @@ export default function Reports() {
 
         .stat-label {
           font-size: 14px;
-          color: #6b7280;
+          color: #000000;
           margin-bottom: 8px;
         }
 
@@ -599,15 +604,7 @@ export default function Reports() {
 
       <div className="header">
         <div className="header-top">
-          <h1 className="page-title">Reports & Analytics</h1>
-          <div className="export-buttons">
-            <button className="export-btn" onClick={() => handleExport('PDF')}>
-              📄 Export PDF
-            </button>
-            <button className="export-btn" onClick={() => handleExport('Excel')}>
-              📊 Export Excel
-            </button>
-          </div>
+          <h1 className="page-title">{t('reportsAnalytics')}</h1>
         </div>
         
         <div className="filters">
@@ -616,19 +613,19 @@ export default function Reports() {
               className={`tab-btn ${selectedReport === 'sales' ? 'active' : ''}`}
               onClick={() => setSelectedReport('sales')}
             >
-              Sales Report
+              {t('salesReport')}
             </button>
             <button 
               className={`tab-btn ${selectedReport === 'inventory' ? 'active' : ''}`}
               onClick={() => setSelectedReport('inventory')}
             >
-              Inventory Report
+              {t('inventoryReport')}
             </button>
             <button 
               className={`tab-btn ${selectedReport === 'financial' ? 'active' : ''}`}
               onClick={() => setSelectedReport('financial')}
             >
-              Financial Report
+              {t('financialReport')}
             </button>
           </div>
           
@@ -639,7 +636,7 @@ export default function Reports() {
               value={dateRange.start}
               onChange={(e) => setDateRange({...dateRange, start: e.target.value})}
             />
-            <span>to</span>
+            <span>{t('to')}</span>
             <input 
               type="date" 
               className="date-input"
@@ -653,47 +650,47 @@ export default function Reports() {
       <div className="content">
         {loading ? (
           <div className="report-card" style={{ textAlign: 'center', padding: '60px' }}>
-            <div style={{ fontSize: '18px', color: '#6b7280' }}>Loading report data...</div>
+            <div style={{ fontSize: '18px', color: '#000000' }}>{t('loadingReportData')}</div>
           </div>
         ) : selectedReport === 'sales' && (
           <>
             <div className="stats-grid">
               <div className="stat-box">
-                <div className="stat-label">Total Revenue</div>
+                <div className="stat-label">{t('totalRevenue')}</div>
                 <div className="stat-value">PKR {salesData.totalRevenue.toLocaleString()}</div>
                 <div className="stat-change change-positive">
-                  {salesData.totalSales} Sales
+                  {salesData.totalSales} {t('sales')}
                 </div>
               </div>
               <div className="stat-box">
-                <div className="stat-label">Top Product</div>
+                <div className="stat-label">{t('topProduct')}</div>
                 <div className="stat-value" style={{ fontSize: '16px' }}>
                   {salesData.topProducts[0]?.name || 'N/A'}
                 </div>
                 <div className="stat-change change-positive">
-                  {salesData.topProducts[0]?.units || 0} units sold
+                  {salesData.topProducts[0]?.units || 0} {t('unitsSold')}
                 </div>
               </div>
               <div className="stat-box">
-                <div className="stat-label">Average Order Value</div>
+                <div className="stat-label">{t('averageOrderValue')}</div>
                 <div className="stat-value">
                   PKR {salesData.totalSales > 0 ? Math.round(salesData.totalRevenue / salesData.totalSales).toLocaleString() : 0}
                 </div>
                 <div className="stat-change change-positive">
-                  Per transaction
+                  {t('perTransaction')}
                 </div>
               </div>
               <div className="stat-box">
-                <div className="stat-label">Categories</div>
+                <div className="stat-label">{t('categories')}</div>
                 <div className="stat-value">{salesData.categories.length}</div>
                 <div className="stat-change change-positive">
-                  Active categories
+                  {t('activeCategories')}
                 </div>
               </div>
             </div>
 
             <div className="report-card">
-              <div className="card-title">Daily Sales Trend</div>
+              <div className="card-title">{t('dailySalesTrend')}</div>
               <div className="chart-container">
                 <div className="bar-chart">
                   {salesData.daily.map((day, index) => (
@@ -712,14 +709,14 @@ export default function Reports() {
 
             <div className="two-column">
               <div className="report-card">
-                <div className="card-title">Top Selling Products</div>
+                <div className="card-title">{t('topSellingProducts')}</div>
                 <div className="table-container">
                   <table className="data-table">
                     <thead>
                       <tr>
-                        <th>Product</th>
-                        <th>Units</th>
-                        <th>Revenue</th>
+                        <th>{t('product')}</th>
+                        <th>{t('units')}</th>
+                        <th>{t('revenue')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -736,7 +733,7 @@ export default function Reports() {
               </div>
 
               <div className="report-card">
-                <div className="card-title">Sales by Category</div>
+                <div className="card-title">{t('salesByCategory')}</div>
                 <div className="pie-chart">
                   <svg className="pie-svg" viewBox="0 0 100 100">
                     {(() => {
@@ -783,47 +780,47 @@ export default function Reports() {
           <>
             <div className="stats-grid">
               <div className="stat-box">
-                <div className="stat-label">Total Products</div>
+                <div className="stat-label">{t('totalProducts')}</div>
                 <div className="stat-value">{inventoryData.totalProducts}</div>
                 <div className="stat-change change-positive">
-                  In inventory
+                  {t('inInventory')}
                 </div>
               </div>
               <div className="stat-box">
-                <div className="stat-label">Low Stock Items</div>
+                <div className="stat-label">{t('lowStockItems')}</div>
                 <div className="stat-value">{inventoryData.lowStock.length}</div>
                 <div className="stat-change change-negative">
-                  Requires attention
+                  {t('requiresAttention')}
                 </div>
               </div>
               <div className="stat-box">
-                <div className="stat-label">Out of Stock</div>
+                <div className="stat-label">{t('outOfStock')}</div>
                 <div className="stat-value">
-                  {inventoryData.lowStock.filter(item => item.status === 'Out of Stock').length}
+                  {inventoryData.lowStock.filter(item => item.status === t('outOfStock')).length}
                 </div>
                 <div className="stat-change change-negative">
-                  Critical
+                  {t('critical')}
                 </div>
               </div>
               <div className="stat-box">
-                <div className="stat-label">Stock Value</div>
+                <div className="stat-label">{t('stockValue')}</div>
                 <div className="stat-value">PKR {(inventoryData.totalValue / 100000).toFixed(1)}L</div>
                 <div className="stat-change change-positive">
-                  Total inventory value
+                  {t('totalInventoryValue')}
                 </div>
               </div>
             </div>
 
             <div className="report-card">
-              <div className="card-title">Low Stock Alert</div>
+              <div className="card-title">{t('lowStockAlert')}</div>
               <div className="table-container">
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Product</th>
-                      <th>Current Stock</th>
-                      <th>Minimum Stock</th>
-                      <th>Status</th>
+                      <th>{t('product')}</th>
+                      <th>{t('currentStock')}</th>
+                      <th>{t('minimumStock')}</th>
+                      <th>{t('status')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -845,14 +842,14 @@ export default function Reports() {
             </div>
 
             <div className="report-card">
-              <div className="card-title">Stock Value by Category</div>
+              <div className="card-title">{t('stockValueByCategory')}</div>
               <div style={{ padding: '20px 0' }}>
                 {inventoryData.stockValue.map((cat, index) => (
                   <div key={index} style={{ marginBottom: '20px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                       <span style={{ fontSize: '14px', fontWeight: '500' }}>{cat.category}</span>
-                      <span style={{ fontSize: '14px', color: '#6b7280' }}>
-                        PKR {(cat.value / 1000).toFixed(0)}k ({cat.items} items)
+                      <span style={{ fontSize: '14px', color: '#000000' }}>
+                        PKR {(cat.value / 1000).toFixed(0)}k ({cat.items} {t('items')})
                       </span>
                     </div>
                     <div className="progress-bar">
@@ -872,46 +869,46 @@ export default function Reports() {
           <>
             <div className="stats-grid">
               <div className="stat-box">
-                <div className="stat-label">Total Revenue</div>
+                <div className="stat-label">{t('totalRevenue')}</div>
                 <div className="stat-value">PKR {financialData.summary.totalRevenue.toLocaleString()}</div>
                 <div className="stat-change change-positive">
-                  ↑ 15% from last month
+                  ↑ 15% {t('fromLastMonth')}
                 </div>
               </div>
               <div className="stat-box">
-                <div className="stat-label">Total Expenses</div>
+                <div className="stat-label">{t('totalExpenses')}</div>
                 <div className="stat-value">PKR {financialData.summary.totalExpenses.toLocaleString()}</div>
                 <div className="stat-change change-negative">
-                  ↑ 8% from last month
+                  ↑ 8% {t('fromLastMonth')}
                 </div>
               </div>
               <div className="stat-box">
-                <div className="stat-label">Net Profit</div>
+                <div className="stat-label">{t('netProfit')}</div>
                 <div className="stat-value">PKR {financialData.summary.netProfit.toLocaleString()}</div>
                 <div className="stat-change change-positive">
-                  ↑ 22% from last month
+                  ↑ 22% {t('fromLastMonth')}
                 </div>
               </div>
               <div className="stat-box">
-                <div className="stat-label">Profit Margin</div>
+                <div className="stat-label">{t('profitMargin')}</div>
                 <div className="stat-value">{financialData.summary.profitMargin}%</div>
                 <div className="stat-change change-positive">
-                  ↑ 3.2% from last month
+                  ↑ 3.2% {t('fromLastMonth')}
                 </div>
               </div>
             </div>
 
             <div className="report-card">
-              <div className="card-title">Monthly Financial Trend</div>
+              <div className="card-title">{t('monthlyFinancialTrend')}</div>
               <div className="table-container">
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Month</th>
-                      <th>Revenue</th>
-                      <th>Expenses</th>
-                      <th>Profit</th>
-                      <th>Margin</th>
+                      <th>{t('month')}</th>
+                      <th>{t('revenue')}</th>
+                      <th>{t('expenses')}</th>
+                      <th>{t('profit')}</th>
+                      <th>{t('margin')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -930,13 +927,13 @@ export default function Reports() {
             </div>
 
             <div className="report-card">
-              <div className="card-title">Expense Breakdown</div>
+              <div className="card-title">{t('expenseBreakdown')}</div>
               <div style={{ padding: '20px 0' }}>
                 {financialData.expenses.map((expense, index) => (
                   <div key={index} style={{ marginBottom: '20px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                       <span style={{ fontSize: '14px', fontWeight: '500' }}>{expense.category}</span>
-                      <span style={{ fontSize: '14px', color: '#6b7280' }}>
+                      <span style={{ fontSize: '14px', color: '#000000' }}>
                         PKR {expense.amount.toLocaleString()} ({expense.percentage}%)
                       </span>
                     </div>

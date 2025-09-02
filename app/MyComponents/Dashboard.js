@@ -140,7 +140,7 @@ export default function Dashboard() {
         .stat-value {
           font-size: 32px;
           font-weight: bold;
-          color: #1f2937;
+          color: #000000;
         }
 
         .stat-change {
@@ -365,7 +365,7 @@ export default function Dashboard() {
           <div className="stat-label">{t('totalProducts')}</div>
           <div className="stat-value">{stats.totalProducts}</div>
           <div className="stat-change change-positive">
-            ↑ 5 new this week
+            ↑ 5 {t('newThisWeek')}
           </div>
         </div>
 
@@ -415,22 +415,22 @@ export default function Dashboard() {
           <div className="quick-action-card">
             <div className="quick-action-icon">🔍</div>
             <div className="quick-action-content">
-              <h3 className="quick-action-title">Find Sale</h3>
-              <p className="quick-action-description">Search and view past transactions</p>
+              <h3 className="quick-action-title">{t('findSale')}</h3>
+              <p className="quick-action-description">{t('searchViewTransactions')}</p>
             </div>
           </div>
           
           <div className="quick-action-card">
             <div className="quick-action-icon">↩️</div>
             <div className="quick-action-content">
-              <h3 className="quick-action-title">Recent Returns</h3>
-              <p className="quick-action-description">View latest product returns</p>
+              <h3 className="quick-action-title">{t('recentReturnsTitle')}</h3>
+              <p className="quick-action-description">{t('viewLatestReturns')}</p>
             </div>
           </div>
 
           <div className="returns-info-section">
-            <h3 className="returns-info-title">Returns & Refunds</h3>
-            <p className="returns-info-description">Process product returns and manage refunds</p>
+            <h3 className="returns-info-title">{t('returnsRefunds')}</h3>
+            <p className="returns-info-description">{t('processReturnsRefunds')}</p>
           </div>
         </div>
       </div>
