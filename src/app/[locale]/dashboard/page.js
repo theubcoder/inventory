@@ -253,7 +253,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                <p className="text-2xl font-bold text-gray-800 mt-2">{stat.value}</p>
+                <p className="text-md font-bold text-gray-800 mt-2">{stat.value}</p>
                 <div className="flex items-center mt-2">
                   {stat.changeType === 'increase' ? (
                     <ArrowTrendingUpIcon className="w-4 h-4 text-green-500 mr-1" />

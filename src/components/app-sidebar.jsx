@@ -41,14 +41,14 @@ import { useLocale, useTranslations } from "next-intl"
 const data = {
   user: {
     name: "Admin",
-    email: "thenaeemullahpk@gmail.com",
+    email: "admin@gmail.com",
     avatar: "/avatars/admin.svg",
   },
   teams: [
     {
-      name: "Naeem Ullah",
+      name: "TheUbCoder",
       logo: "/images/Logo.png",
-      plan: "Bartan Store",
+      plan: "Inventory",
     },
   ],
   navMain: [

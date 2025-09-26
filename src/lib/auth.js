@@ -2,8 +2,8 @@ import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import bcrypt from "bcryptjs"
 
-const ADMIN_EMAIL = "thenaeemullahpk@gmail.com"
-const ADMIN_PASSWORD_HASH = "$2b$10$YdXhn8YdjyQV2dxxoV/ntegJNzR5TNK.F.5AZntg8MlM60QIfknDa"
+const ADMIN_EMAIL = "admin@gmail.com"
+const ADMIN_PASSWORD_HASH = "$2b$10$iJhLMvfJeB4NPWF4aTHI7.EADLr9z.X9THfnquFDOhUCRtpowOU3W"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [

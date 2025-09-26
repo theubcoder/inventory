@@ -6,8 +6,8 @@ import { NextIntlClientProvider } from "next-intl";
 import { Providers } from "@/components/providers";
 
 export const metadata = {
-  title: "Naeem Ullah Bartan Store",
-  description: "Inventory Management System - Naeem Ullah Bartan Store",
+  title: "Inventory Managment System",
+  description: "Inventory Management System - theubcoder",
   icons: {
     icon: '/Logo.svg',
     shortcut: '/Logo.svg',

@@ -232,7 +232,7 @@ export default function Reports() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">{card.title}</p>
-                <p className="text-2xl font-bold text-gray-800 mt-2">{card.value}</p>
+                <p className="text-md font-bold text-gray-800 mt-2">{card.value}</p>
               </div>
               <div className={`${card.bgColor} p-3 rounded-lg`}>
                 <card.icon className="w-6 h-6 text-white" />
